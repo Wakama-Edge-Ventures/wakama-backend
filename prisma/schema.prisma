@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  FARMER
+  COOP_ADMIN
+  MFI_AGENT
+  SUPERADMIN
+}
+
+enum KycStatus {
+  PENDING
+  VALIDATED
+  REJECTED
+}
+
+enum AlertSeverity {
+  CRITIQUE
+  AVERTISSEMENT
+  INFO
+}
+
+enum AlertStatus {
+  ACTIVE
+  PENDING
+  RESOLVED
+}
+
+enum AlertType {
+  SCORE_DROP
+  DROUGHT_RISK
+  IOT_OFFLINE
+  LOAN_OVERDUE
+  NDVI_CRITICAL
+}
+
+enum LoanStatus {
+  EN_COURS
+  REMBOURSE
+  DEFAUT
+  EN_ATTENTE
+}
+
+enum NodeStatus {
+  LIVE
+  OFFLINE
+  MAINTENANCE
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  farmer    Farmer?
+  coopAdmin CoopAdmin?
+  mfiAgent  MFIAgent?
+  apiKeys   ApiKey[]
+}
+
+model Farmer {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  firstName     String
+  lastName      String
+  phone         String
+  region        String
+  village       String
+  lat           Float
+  lng           Float
+  surface       Float
+  onboardedAt   DateTime  @default(now())
+  kycStatus     KycStatus @default(PENDING)
+  cooperativeId String?
+  blockchainId  String?
+
+  user        User        @relation(fields: [userId], references: [id])
+  cooperative Cooperative? @relation(fields: [cooperativeId], references: [id])
+  parcelles   Parcelle[]
+  loans       Loan[]
+  alerts      Alert[]
+  creditScore CreditScore?
+  iotNodes    IoTNode[]
+}
+
+model CoopAdmin {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  cooperativeId String? @unique
+
+  user        User         @relation(fields: [userId], references: [id])
+  cooperative Cooperative? @relation(fields: [cooperativeId], references: [id])
+}
+
+model MFIAgent {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Cooperative {
+  id           String   @id @default(cuid())
+  name         String
+  rccm         String   @unique
+  region       String
+  filiere      String
+  surface      Float
+  foundedAt    DateTime
+  blockchainId String?
+  lat          Float
+  lng          Float
+
+  farmers   Farmer[]
+  coopAdmin CoopAdmin?
+  iotNode   IoTNode?
+  alerts    Alert[]
+}
+
+model Parcelle {
+  id            String   @id @default(cuid())
+  farmerId      String
+  name          String
+  culture       String
+  superficie    Float
+  lat           Float
+  lng           Float
+  ndvi          Float
+  statut        String
+  lastUpdatedAt DateTime @updatedAt
+
+  farmer      Farmer       @relation(fields: [farmerId], references: [id])
+  alerts      Alert[]
+  iotReadings IoTReading[]
+}
+
+model CreditScore {
+  id                      String   @id @default(cuid())
+  farmerId                String   @unique
+  score                   Int
+  scoreMax                Int
+  status                  String
+  historiquePayments      Float
+  utilisationCredit       Float
+  diversificationCultures Float
+  regulariteDeclarations  Float
+  riskLevel               RiskLevel
+  generatedAt             DateTime @default(now())
+
+  farmer Farmer @relation(fields: [farmerId], references: [id])
+}
+
+model Loan {
+  id                  String     @id @default(cuid())
+  farmerId            String
+  type                String
+  montantInitial      Float
+  montantRembourse    Float
+  tauxAnnuel          Float
+  status              LoanStatus
+  nextPaymentDate     DateTime
+  nextPaymentAmount   Float
+  createdAt           DateTime   @default(now())
+
+  farmer       Farmer        @relation(fields: [farmerId], references: [id])
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  loanId      String
+  date        DateTime
+  description String
+  amount      Float
+  isCredit    Boolean
+
+  loan Loan @relation(fields: [loanId], references: [id])
+}
+
+model Alert {
+  id            String        @id @default(cuid())
+  severity      AlertSeverity
+  status        AlertStatus
+  type          AlertType
+  title         String
+  description   String
+  farmerId      String?
+  parcelleId    String?
+  cooperativeId String?
+  lat           Float?
+  lng           Float?
+  createdAt     DateTime      @default(now())
+  resolvedAt    DateTime?
+
+  farmer      Farmer?      @relation(fields: [farmerId], references: [id])
+  parcelle    Parcelle?    @relation(fields: [parcelleId], references: [id])
+  cooperative Cooperative? @relation(fields: [cooperativeId], references: [id])
+}
+
+model IoTNode {
+  id            String     @id @default(cuid())
+  nodeCode      String     @unique
+  cooperativeId String?    @unique
+  farmerId      String?
+  lat           Float
+  lng           Float
+  status        NodeStatus
+  batterie      Float
+  connectivity  String
+  lastSyncAt    DateTime
+
+  cooperative Cooperative? @relation(fields: [cooperativeId], references: [id])
+  farmer      Farmer?      @relation(fields: [farmerId], references: [id])
+  readings    IoTReading[]
+}
+
+model IoTReading {
+  id           String   @id @default(cuid())
+  nodeId       String
+  parcelleId   String?
+  temperature  Float
+  humidity     Float
+  soilMoisture Float?
+  rainfall     Float?
+  luminosity   Float?
+  phSol        Float?
+  recordedAt   DateTime @default(now())
+
+  node     IoTNode  @relation(fields: [nodeId], references: [id])
+  parcelle Parcelle? @relation(fields: [parcelleId], references: [id])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  key         String    @unique
+  permissions String[]
+  createdAt   DateTime  @default(now())
+  lastUsed    DateTime?
+  status      String
+  userId      String
+
+  user User @relation(fields: [userId], references: [id])
+}
