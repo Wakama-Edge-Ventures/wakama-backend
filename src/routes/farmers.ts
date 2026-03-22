@@ -85,4 +85,34 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
 
     return reply.status(201).send(farmer)
   })
+
+  // PATCH /v1/farmers/:id
+  fastify.patch('/v1/farmers/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as {
+      firstName?: string
+      lastName?: string
+      phone?: string
+      region?: string
+      village?: string
+      surface?: number
+    }
+
+    const farmer = await prisma.farmer.findUnique({ where: { id } })
+    if (!farmer) return reply.status(404).send({ error: 'Farmer not found' })
+
+    const updated = await prisma.farmer.update({
+      where: { id },
+      data: {
+        ...(body.firstName && { firstName: body.firstName }),
+        ...(body.lastName && { lastName: body.lastName }),
+        ...(body.phone && { phone: body.phone }),
+        ...(body.region && { region: body.region }),
+        ...(body.village && { village: body.village }),
+        ...(body.surface && { surface: Number(body.surface) }),
+      }
+    })
+
+    return updated
+  })
 }
