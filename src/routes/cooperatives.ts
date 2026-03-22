@@ -60,7 +60,7 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
 
     const cooperative = await prisma.cooperative.findUnique({
       where: { id },
-      include: { _count: { select: { farmers: true } } },
+      include: { _count: { select: { farmers: true } }, iotNode: true },
     })
 
     if (!cooperative) return reply.status(404).send({ error: 'Cooperative not found' })
@@ -92,6 +92,7 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
         ...(body.filiere && { filiere: body.filiere }),
         ...(body.surface != null && { surface: body.surface }),
         ...(body.rccm && { rccm: body.rccm }),
+        ...(body.logoUrl && { logoUrl: body.logoUrl }),
       },
     })
 

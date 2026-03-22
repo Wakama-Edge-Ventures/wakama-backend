@@ -133,6 +133,7 @@ model Cooperative {
   blockchainId String?
   lat          Float
   lng          Float
+  logoUrl      String?
 
   farmers   Farmer[]
   coopAdmin CoopAdmin?
