@@ -147,6 +147,7 @@ model Parcelle {
   lng           Float
   ndvi          Float
   statut        String
+  polygone      String?
   lastUpdatedAt DateTime @updatedAt
 
   farmer      Farmer       @relation(fields: [farmerId], references: [id])

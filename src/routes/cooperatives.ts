@@ -35,4 +35,33 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
     const { _count, ...rest } = cooperative
     return { ...rest, membersCount: _count.farmers }
   })
+
+  // PATCH /v1/cooperatives/:id
+  fastify.patch('/v1/cooperatives/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as {
+      name?: string
+      region?: string
+      filiere?: string
+      surface?: number
+      rccm?: string
+      logoUrl?: string
+    }
+
+    const existing = await prisma.cooperative.findUnique({ where: { id } })
+    if (!existing) return reply.status(404).send({ error: 'Cooperative not found' })
+
+    const updated = await prisma.cooperative.update({
+      where: { id },
+      data: {
+        ...(body.name && { name: body.name }),
+        ...(body.region && { region: body.region }),
+        ...(body.filiere && { filiere: body.filiere }),
+        ...(body.surface != null && { surface: body.surface }),
+        ...(body.rccm && { rccm: body.rccm }),
+      },
+    })
+
+    return updated
+  })
 }
