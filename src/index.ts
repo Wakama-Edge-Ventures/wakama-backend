@@ -10,7 +10,12 @@ import alertsRoutes from './routes/alerts.js'
 const app = Fastify({ logger: true })
 
 async function bootstrap() {
-  await app.register(cors, { origin: true })
+  await app.register(cors, {
+    origin: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  })
 
   await app.register(jwt, {
     secret: process.env.JWT_SECRET as string,
