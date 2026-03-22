@@ -91,9 +91,11 @@ model Farmer {
   surface       Float
   onboardedAt   DateTime  @default(now())
   kycStatus     KycStatus @default(PENDING)
-  photoUrl      String?
-  cooperativeId String?
-  blockchainId  String?
+  photoUrl         String?
+  cniUrl           String?
+  attestationUrl   String?
+  cooperativeId    String?
+  blockchainId     String?
 
   user        User        @relation(fields: [userId], references: [id])
   cooperative Cooperative? @relation(fields: [cooperativeId], references: [id])

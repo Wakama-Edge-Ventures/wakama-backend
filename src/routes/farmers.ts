@@ -97,6 +97,8 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
       village?: string
       surface?: number
       photoUrl?: string
+      cniUrl?: string
+      attestationUrl?: string
     }
 
     const farmer = await prisma.farmer.findUnique({ where: { id } })
@@ -112,6 +114,8 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
         ...(body.village && { village: body.village }),
         ...(body.surface && { surface: Number(body.surface) }),
         ...(body.photoUrl && { photoUrl: body.photoUrl }),
+        ...(body.cniUrl && { cniUrl: body.cniUrl }),
+        ...(body.attestationUrl && { attestationUrl: body.attestationUrl }),
       }
     })
 
