@@ -91,6 +91,7 @@ model Farmer {
   surface       Float
   onboardedAt   DateTime  @default(now())
   kycStatus     KycStatus @default(PENDING)
+  photoUrl      String?
   cooperativeId String?
   blockchainId  String?
 
