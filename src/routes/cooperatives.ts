@@ -21,6 +21,39 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
     return { data, total, page: pageNum, pageSize }
   })
 
+  // POST /v1/cooperatives
+  fastify.post('/v1/cooperatives', async (request, reply) => {
+    const body = request.body as {
+      name: string
+      rccm?: string
+      region?: string
+      filiere?: string
+      surface?: number
+      foundedAt?: string
+      lat?: number
+      lng?: number
+      blockchainId?: string
+    }
+
+    if (!body.name) return reply.status(400).send({ error: 'name is required' })
+
+    const cooperative = await prisma.cooperative.create({
+      data: {
+        id: `coop-${Date.now()}`,
+        name: body.name,
+        rccm: body.rccm ?? '',
+        region: body.region ?? '',
+        filiere: body.filiere ?? '',
+        surface: body.surface ? Number(body.surface) : 0,
+        foundedAt: body.foundedAt ? new Date(body.foundedAt) : new Date(),
+        lat: body.lat ?? 0,
+        lng: body.lng ?? 0,
+      },
+    })
+
+    return reply.status(201).send(cooperative)
+  })
+
   // GET /v1/cooperatives/:id
   fastify.get('/v1/cooperatives/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
