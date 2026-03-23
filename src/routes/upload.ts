@@ -29,7 +29,7 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
     await pipeline(data.file, fs.createWriteStream(filePath))
 
     const url = `/uploads/farmers/${farmerId}/photo${ext}`
-    await prisma.farmer.update({ where: { id: farmerId }, data: { blockchainId: url } })
+    await prisma.farmer.update({ where: { id: farmerId }, data: { photoUrl: url } })
     return { url }
   })
 
