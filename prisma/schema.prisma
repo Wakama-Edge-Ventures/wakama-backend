@@ -104,6 +104,7 @@ model Farmer {
   alerts      Alert[]
   creditScore CreditScore?
   iotNodes    IoTNode[]
+  weatherHistory WeatherHistory[]
 }
 
 model CoopAdmin {
@@ -140,6 +141,7 @@ model Cooperative {
   coopAdmin CoopAdmin?
   iotNode   IoTNode?
   alerts    Alert[]
+  weatherHistory WeatherHistory[]
 }
 
 model Parcelle {
@@ -158,6 +160,7 @@ model Parcelle {
   farmer      Farmer       @relation(fields: [farmerId], references: [id])
   alerts      Alert[]
   iotReadings IoTReading[]
+  weatherHistory WeatherHistory[]
 }
 
 model CreditScore {
@@ -267,4 +270,59 @@ model ApiKey {
   userId      String
 
   user User @relation(fields: [userId], references: [id])
+}
+
+model WeatherHistory {
+  id          String   @id @default(cuid())
+  parcelleId  String?
+  coopId      String?
+  farmerId    String?
+  lat         Float
+  lng         Float
+  region      String?
+  country     String   @default("CI")
+  recordedAt  DateTime @default(now())
+
+  // Temperature
+  tempAir     Float
+  tempFeels   Float?
+  tempSoil0   Float?
+  tempSoil6   Float?
+  tempSoil18  Float?
+  tempSoil54  Float?
+
+  // Humidity
+  humidityAir    Float?
+  soilMoist0     Float?
+  soilMoist1     Float?
+  soilMoist3     Float?
+  soilMoist9     Float?
+  soilMoist27    Float?
+
+  // Weather
+  precipitation  Float?
+  precipProb     Float?
+  windSpeed      Float?
+  windDir        Float?
+  cloudCover     Float?
+
+  // Solar
+  radiation      Float?
+  uvIndex        Float?
+  sunshineDur    Float?
+
+  // Agricultural
+  et0            Float?
+  vpd            Float?
+  dewPoint       Float?
+
+  // Relations
+  parcelle    Parcelle?    @relation(fields: [parcelleId], references: [id])
+  cooperative Cooperative? @relation(fields: [coopId], references: [id])
+  farmer      Farmer?      @relation(fields: [farmerId], references: [id])
+
+  @@index([parcelleId, recordedAt])
+  @@index([coopId, recordedAt])
+  @@index([farmerId, recordedAt])
+  @@index([lat, lng, recordedAt])
 }

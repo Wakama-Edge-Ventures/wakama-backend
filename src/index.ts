@@ -14,6 +14,8 @@ import uploadRoutes, { initUploadDirs } from './routes/upload.js'
 import authRoutes from './routes/auth.js'
 import parcellesRoutes from './routes/parcelles.js'
 import ndviRoutes from './routes/ndvi.js'
+import weatherRoutes from './routes/weather.js'
+import { collectWeatherForAllParcelles, collectWeatherForAllCoops } from './jobs/weatherCollector.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = Fastify({ logger: true })
@@ -51,11 +53,24 @@ async function bootstrap() {
   app.register(authRoutes)
   app.register(parcellesRoutes)
   app.register(ndviRoutes)
+  app.register(weatherRoutes)
 
   const port = Number(process.env.PORT) || 4000
 
   await app.listen({ port, host: '0.0.0.0' })
   console.log(`Server running on port ${port}`)
+
+  // Run once on startup after 30 seconds
+  setTimeout(async () => {
+    await collectWeatherForAllParcelles()
+    await collectWeatherForAllCoops()
+  }, 30 * 1000)
+
+  // Run every hour
+  setInterval(async () => {
+    await collectWeatherForAllParcelles()
+    await collectWeatherForAllCoops()
+  }, 60 * 60 * 1000)
 }
 
 bootstrap().catch((err) => {
