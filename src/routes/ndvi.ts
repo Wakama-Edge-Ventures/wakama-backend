@@ -68,12 +68,15 @@ function evaluatePixel(sample) {
 
       const lngs = coordinates.map((c: number[]) => c[0])
       const lats = coordinates.map((c: number[]) => c[1])
+      const minBuffer = 0.01
       const bbox = [
-        Math.min(...lngs), Math.min(...lats),
-        Math.max(...lngs), Math.max(...lats),
+        Math.min(...lngs) - minBuffer,
+        Math.min(...lats) - minBuffer,
+        Math.max(...lngs) + minBuffer,
+        Math.max(...lats) + minBuffer,
       ]
 
-      const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
       const to = new Date().toISOString()
 
       const statsRes = await fetch('https://sh.dataspace.copernicus.eu/api/v1/statistics', {
@@ -158,9 +161,12 @@ function evaluatePixel(sample) {
 
       const lngs = coordinates.map((c: number[]) => c[0])
       const lats = coordinates.map((c: number[]) => c[1])
+      const minBuffer = 0.01
       const bbox = [
-        Math.min(...lngs), Math.min(...lats),
-        Math.max(...lngs), Math.max(...lats),
+        Math.min(...lngs) - minBuffer,
+        Math.min(...lats) - minBuffer,
+        Math.max(...lngs) + minBuffer,
+        Math.max(...lats) + minBuffer,
       ]
 
       const evalscriptColor = `
@@ -178,7 +184,7 @@ function evaluatePixel(sample) {
         }
       `
 
-      const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
       const to = new Date().toISOString()
 
       const imgRes = await fetch(SENTINEL_PROCESS_URL, {
