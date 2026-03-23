@@ -68,7 +68,7 @@ function evaluatePixel(sample) {
 
       const lngs = coordinates.map((c: number[]) => c[0])
       const lats = coordinates.map((c: number[]) => c[1])
-      const minBuffer = 0.01
+      const minBuffer = 0.001
       const bbox = [
         Math.min(...lngs) - minBuffer,
         Math.min(...lats) - minBuffer,
@@ -100,11 +100,13 @@ function evaluatePixel(sample) {
             }],
           },
           aggregation: {
-            timeRange: { from, to },
+            timeRange: {
+              from: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+              to: new Date().toISOString(),
+            },
             aggregationInterval: { of: 'P30D' },
             evalscript,
-            resx: 10,
-            resy: 10,
+            resolution: { x: 10, y: 10, unit: 'METERS' },
           },
         }),
       })
@@ -161,7 +163,7 @@ function evaluatePixel(sample) {
 
       const lngs = coordinates.map((c: number[]) => c[0])
       const lats = coordinates.map((c: number[]) => c[1])
-      const minBuffer = 0.01
+      const minBuffer = 0.001
       const bbox = [
         Math.min(...lngs) - minBuffer,
         Math.min(...lats) - minBuffer,
