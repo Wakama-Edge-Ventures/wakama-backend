@@ -39,23 +39,29 @@ export default async function ndviRoutes(fastify: FastifyInstance) {
       const token = await getSentinelToken()
       const geo = JSON.parse(parcelle.polygone)
 
-      const evalscript = `
-        //VERSION=3
-        function setup() {
-          return {
-            input: [{ bands: ["B04", "B08"] }],
-            output: { bands: 1, sampleType: "FLOAT32" }
-          };
-        }
-        function evaluatePixel(sample) {
-          let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04);
-          return [ndvi];
-        }
-      `
+      const evalscript = `//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["B04", "B08"] }],
+    output: { bands: 1, sampleType: "FLOAT32" }
+  };
+}
+function evaluatePixel(sample) {
+  let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04);
+  return [ndvi];
+}`
 
-      const coords = geo.geometry.coordinates[0]
-      const lngs = coords.map((c: number[]) => c[0])
-      const lats = coords.map((c: number[]) => c[1])
+      let coordinates: number[][]
+      if (geo.type === 'Feature') {
+        coordinates = geo.geometry.coordinates[0]
+      } else if (geo.type === 'Polygon') {
+        coordinates = geo.coordinates[0]
+      } else {
+        return reply.status(400).send({ error: 'Invalid polygon format' })
+      }
+
+      const lngs = coordinates.map((c: number[]) => c[0])
+      const lats = coordinates.map((c: number[]) => c[1])
       const bbox = [
         Math.min(...lngs), Math.min(...lats),
         Math.max(...lngs), Math.max(...lats),
@@ -134,9 +140,18 @@ export default async function ndviRoutes(fastify: FastifyInstance) {
     try {
       const token = await getSentinelToken()
       const geo = JSON.parse(parcelle.polygone)
-      const coords = geo.geometry.coordinates[0]
-      const lngs = coords.map((c: number[]) => c[0])
-      const lats = coords.map((c: number[]) => c[1])
+
+      let coordinates: number[][]
+      if (geo.type === 'Feature') {
+        coordinates = geo.geometry.coordinates[0]
+      } else if (geo.type === 'Polygon') {
+        coordinates = geo.coordinates[0]
+      } else {
+        return reply.status(400).send({ error: 'Invalid polygon format' })
+      }
+
+      const lngs = coordinates.map((c: number[]) => c[0])
+      const lats = coordinates.map((c: number[]) => c[1])
       const bbox = [
         Math.min(...lngs), Math.min(...lats),
         Math.max(...lngs), Math.max(...lats),
