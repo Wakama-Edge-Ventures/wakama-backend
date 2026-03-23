@@ -129,6 +129,7 @@ function evaluatePixel(sample) {
 
       return {
         parcelleId,
+        debug: statsData,
         ndvi: mean !== null ? parseFloat(mean.toFixed(3)) : null,
         lastUpdated: new Date().toISOString(),
         status: mean !== null ? 'success' : 'no_data',
