@@ -13,6 +13,7 @@ import alertsRoutes from './routes/alerts.js'
 import uploadRoutes, { initUploadDirs } from './routes/upload.js'
 import authRoutes from './routes/auth.js'
 import parcellesRoutes from './routes/parcelles.js'
+import ndviRoutes from './routes/ndvi.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = Fastify({ logger: true })
@@ -49,6 +50,7 @@ async function bootstrap() {
   app.register(uploadRoutes)
   app.register(authRoutes)
   app.register(parcellesRoutes)
+  app.register(ndviRoutes)
 
   const port = Number(process.env.PORT) || 4000
 
