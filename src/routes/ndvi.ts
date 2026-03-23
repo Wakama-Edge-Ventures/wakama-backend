@@ -42,13 +42,19 @@ export default async function ndviRoutes(fastify: FastifyInstance) {
       const evalscript = `//VERSION=3
 function setup() {
   return {
-    input: [{ bands: ["B04", "B08"] }],
-    output: { bands: 1, sampleType: "FLOAT32" }
+    input: [{ bands: ["B04", "B08", "dataMask"] }],
+    output: [
+      { id: "B0", bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask", bands: 1 }
+    ]
   };
 }
 function evaluatePixel(sample) {
   let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04);
-  return [ndvi];
+  return {
+    B0: [ndvi],
+    dataMask: [sample.dataMask]
+  };
 }`
 
       let coordinates: number[][]
