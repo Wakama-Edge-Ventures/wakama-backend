@@ -134,6 +134,7 @@ model Cooperative {
   lat          Float
   lng          Float
   logoUrl      String?
+  adminUserId  String?
 
   farmers   Farmer[]
   coopAdmin CoopAdmin?

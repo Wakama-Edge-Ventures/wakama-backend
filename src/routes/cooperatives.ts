@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../lib/prisma.js'
+import { verifyToken } from '../middleware/auth.js'
 
 export default async function cooperativesRoutes(fastify: FastifyInstance) {
   // GET /v1/cooperatives
@@ -22,7 +23,7 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/cooperatives
-  fastify.post('/v1/cooperatives', async (request, reply) => {
+  fastify.post('/v1/cooperatives', { preHandler: verifyToken }, async (request, reply) => {
     const body = request.body as {
       name: string
       rccm?: string
@@ -35,6 +36,7 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
       blockchainId?: string
     }
 
+    const caller = request.user as { id: string } | undefined
     if (!body.name) return reply.status(400).send({ error: 'name is required' })
 
     const cooperative = await prisma.cooperative.create({
@@ -48,6 +50,7 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
         foundedAt: body.foundedAt ? new Date(body.foundedAt) : new Date(),
         lat: body.lat ?? 0,
         lng: body.lng ?? 0,
+        ...(caller?.id && { adminUserId: caller.id }),
       },
     })
 

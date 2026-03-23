@@ -96,6 +96,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (!user) return reply.status(404).send({ error: 'User not found' })
 
     const farmer = await prisma.farmer.findUnique({ where: { userId: user.id } })
-    return { ...user, farmer }
+
+    let coopId: string | null = null
+    if (user.role === 'COOP_ADMIN') {
+      const coop = await prisma.cooperative.findFirst({ where: { adminUserId: user.id } })
+      coopId = coop?.id ?? null
+    }
+
+    return { ...user, farmer, coopId }
   })
 }
