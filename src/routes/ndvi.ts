@@ -117,8 +117,9 @@ function evaluatePixel(sample) {
       }
 
       const statsData = await statsRes.json()
-      const outputs = statsData?.data?.[0]?.outputs?.B0
-      const mean = outputs?.stats?.mean ?? null
+      const dataPoints = statsData?.data
+      const lastPoint = dataPoints?.[dataPoints.length - 1]
+      const mean = lastPoint?.outputs?.B0?.bands?.B0?.stats?.mean ?? null
 
       if (mean !== null) {
         await prisma.parcelle.update({
@@ -129,7 +130,6 @@ function evaluatePixel(sample) {
 
       return {
         parcelleId,
-        debug: statsData,
         ndvi: mean !== null ? parseFloat(mean.toFixed(3)) : null,
         lastUpdated: new Date().toISOString(),
         status: mean !== null ? 'success' : 'no_data',
