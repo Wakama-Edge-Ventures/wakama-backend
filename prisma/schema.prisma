@@ -237,6 +237,11 @@ model IoTNode {
   batterie      Float
   connectivity  String
   lastSyncAt    DateTime
+  siteId        String?
+  subteamId     String?
+  altitude      Float?
+  lastRssi      Int?
+  totalReadings Int        @default(0)
 
   cooperative Cooperative? @relation(fields: [cooperativeId], references: [id])
   farmer      Farmer?      @relation(fields: [farmerId], references: [id])
@@ -255,7 +260,28 @@ model IoTReading {
   phSol        Float?
   recordedAt   DateTime @default(now())
 
-  node     IoTNode  @relation(fields: [nodeId], references: [id])
+  // Air sensors (DHT22 x2)
+  tempS1          Float?
+  humidityS1      Float?
+  tempS2          Float?
+  humidityS2Raw   Float?
+  humidityS2Corr  Float?
+  tempAvg         Float?
+  humidityAvg     Float?
+  humidityUsed    Float?
+  humidityDiff    Float?
+
+  // Soil (DS18B20 + analog)
+  soilTempTrue    Float?
+  soilRaw         Int?
+  soilVoltage     Float?
+
+  // Device metadata
+  rssi            Int?
+  deviceCode      String?
+  ntpSynced       Boolean?
+
+  node     IoTNode   @relation(fields: [nodeId], references: [id])
   parcelle Parcelle? @relation(fields: [parcelleId], references: [id])
 }
 
