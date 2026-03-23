@@ -26,6 +26,7 @@
     "dotenv": "^17.3.1",
     "fastify": "^5.8.2",
     "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^8.0.3",
     "pg": "^8.20.0",
     "prisma": "^5.22.0"
   },
@@ -33,6 +34,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
+    "@types/nodemailer": "^7.0.11",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"

@@ -105,4 +105,32 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     return { ...user, farmer, coopId }
   })
+
+  // POST /v1/auth/send-verification
+  fastify.post('/v1/auth/send-verification', async (request, reply) => {
+    const { email, firstName } = request.body as { email: string; firstName: string }
+
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing) return reply.status(409).send({ error: 'Email already in use' })
+
+    const { generateCode, storeCode } = await import('../lib/verificationCodes.js')
+    const { sendVerificationEmail } = await import('../lib/mailer.js')
+
+    const code = generateCode()
+    storeCode(email, code, firstName)
+    await sendVerificationEmail(email, code, firstName)
+
+    return { success: true, message: 'Code sent' }
+  })
+
+  // POST /v1/auth/verify-code
+  fastify.post('/v1/auth/verify-code', async (request, reply) => {
+    const { email, code } = request.body as { email: string; code: string }
+    const { verifyCode } = await import('../lib/verificationCodes.js')
+
+    const valid = verifyCode(email, code)
+    if (!valid) return reply.status(400).send({ error: 'Code invalide ou expiré' })
+
+    return { success: true, verified: true }
+  })
 }
