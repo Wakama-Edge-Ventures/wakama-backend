@@ -23,25 +23,6 @@ enum KycStatus {
   REJECTED
 }
 
-enum AlertSeverity {
-  CRITIQUE
-  AVERTISSEMENT
-  INFO
-}
-
-enum AlertStatus {
-  ACTIVE
-  PENDING
-  RESOLVED
-}
-
-enum AlertType {
-  SCORE_DROP
-  DROUGHT_RISK
-  IOT_OFFLINE
-  LOAN_OVERDUE
-  NDVI_CRITICAL
-}
 
 enum LoanStatus {
   EN_COURS
@@ -214,23 +195,23 @@ model Transaction {
 }
 
 model Alert {
-  id            String        @id @default(cuid())
-  severity      AlertSeverity
-  status        AlertStatus
-  type          AlertType
-  title         String
-  description   String
-  farmerId      String?
-  parcelleId    String?
-  cooperativeId String?
-  lat           Float?
-  lng           Float?
-  createdAt     DateTime      @default(now())
-  resolvedAt    DateTime?
+  id         String   @id @default(cuid())
+  farmerId   String?
+  coopId     String?
+  parcelleId String?
+  type       String
+  severity   String
+  title      String
+  message    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   farmer      Farmer?      @relation(fields: [farmerId], references: [id])
+  cooperative Cooperative? @relation(fields: [coopId], references: [id])
   parcelle    Parcelle?    @relation(fields: [parcelleId], references: [id])
-  cooperative Cooperative? @relation(fields: [cooperativeId], references: [id])
+
+  @@index([farmerId, read])
+  @@index([coopId, read])
 }
 
 model IoTNode {

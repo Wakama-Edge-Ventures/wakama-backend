@@ -19,6 +19,7 @@ import iotRoutes from './routes/iot.js'
 import activitiesRoutes from './routes/activities.js'
 import messagesRoutes from './routes/messages.js'
 import { collectWeatherForAllParcelles, collectWeatherForAllCoops } from './jobs/weatherCollector.js'
+import { generateAlertsForAllFarmers, generateAlertsForCoops } from './jobs/alertsGenerator.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = Fastify({ logger: true })
@@ -77,6 +78,18 @@ async function bootstrap() {
     await collectWeatherForAllParcelles()
     await collectWeatherForAllCoops()
   }, 60 * 60 * 1000)
+
+  // Run alerts generation once on startup after 60 seconds
+  setTimeout(async () => {
+    await generateAlertsForAllFarmers()
+    await generateAlertsForCoops()
+  }, 60 * 1000)
+
+  // Run alerts generation every 6 hours
+  setInterval(async () => {
+    await generateAlertsForAllFarmers()
+    await generateAlertsForCoops()
+  }, 6 * 60 * 60 * 1000)
 }
 
 bootstrap().catch((err) => {
