@@ -105,6 +105,8 @@ model Farmer {
   creditScore CreditScore?
   iotNodes    IoTNode[]
   weatherHistory WeatherHistory[]
+  activities  Activity[]
+  messages    Message[]
 }
 
 model CoopAdmin {
@@ -142,6 +144,7 @@ model Cooperative {
   iotNode   IoTNode?
   alerts    Alert[]
   weatherHistory WeatherHistory[]
+  messages  Message[]
 }
 
 model Parcelle {
@@ -161,6 +164,7 @@ model Parcelle {
   alerts      Alert[]
   iotReadings IoTReading[]
   weatherHistory WeatherHistory[]
+  activities  Activity[]
 }
 
 model CreditScore {
@@ -351,4 +355,31 @@ model WeatherHistory {
   @@index([coopId, recordedAt])
   @@index([farmerId, recordedAt])
   @@index([lat, lng, recordedAt])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  farmerId    String
+  parcelleId  String?
+  type        String
+  description String?
+  date        DateTime
+  statut      String   @default("EN_COURS")
+  createdAt   DateTime @default(now())
+
+  farmer   Farmer    @relation(fields: [farmerId], references: [id])
+  parcelle Parcelle? @relation(fields: [parcelleId], references: [id])
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  farmerId      String
+  cooperativeId String
+  objet         String
+  message       String
+  lu            Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  farmer      Farmer      @relation(fields: [farmerId], references: [id])
+  cooperative Cooperative @relation(fields: [cooperativeId], references: [id])
 }

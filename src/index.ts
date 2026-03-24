@@ -16,6 +16,8 @@ import parcellesRoutes from './routes/parcelles.js'
 import ndviRoutes from './routes/ndvi.js'
 import weatherRoutes from './routes/weather.js'
 import iotRoutes from './routes/iot.js'
+import activitiesRoutes from './routes/activities.js'
+import messagesRoutes from './routes/messages.js'
 import { collectWeatherForAllParcelles, collectWeatherForAllCoops } from './jobs/weatherCollector.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -56,6 +58,8 @@ async function bootstrap() {
   app.register(ndviRoutes)
   app.register(weatherRoutes)
   app.register(iotRoutes)
+  app.register(activitiesRoutes)
+  app.register(messagesRoutes)
 
   const port = Number(process.env.PORT) || 4000
 
