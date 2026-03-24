@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { verifyToken } from '../middleware/auth.js'
+import { sendOnboardingNotification } from '../lib/mailer.js'
 
 export default async function authRoutes(fastify: FastifyInstance) {
   // POST /v1/auth/register
@@ -48,6 +49,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
           surface: body.surface ?? 0,
         },
       })
+    }
+
+    if (farmer) {
+      sendOnboardingNotification(
+        {
+          id: farmer.id,
+          firstName: body.firstName,
+          lastName: body.lastName,
+          phone: body.phone,
+          region: body.region ?? '',
+          village: body.village ?? '',
+          surface: body.surface ?? 0,
+          cooperativeId: null,
+          kycStatus: 'PENDING',
+          cniUrl: null,
+          attestationUrl: null,
+          onboardedAt: farmer.onboardedAt ?? new Date(),
+        },
+        { email: body.email }
+      ).catch(err => console.error('[Mailer] Onboarding notification failed:', err))
     }
 
     const token = fastify.jwt.sign(
