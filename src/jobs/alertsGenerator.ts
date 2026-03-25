@@ -34,7 +34,8 @@ export async function generateAlertsForAllFarmers() {
       const soilMoisture = weather.hourly.soil_moisture_0_to_1cm[i] ?? 0.3
       const precipProb = weather.hourly.precipitation_probability[i] ?? 0
 
-      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000)
+      const todayMidnight = new Date()
+      todayMidnight.setHours(0, 0, 0, 0)
 
       // ALERT 1 — Heavy rain coming
       if (tomorrowPrecip > 20) {
@@ -42,8 +43,8 @@ export async function generateAlertsForAllFarmers() {
           where: {
             farmerId: farmer.id,
             type: 'METEO',
-            title: '🌧️ Fortes pluies prévues demain',
-            createdAt: { gte: sixHoursAgo },
+            severity: 'WARNING',
+            createdAt: { gte: todayMidnight },
           },
         })
         if (!exists) {
@@ -65,8 +66,8 @@ export async function generateAlertsForAllFarmers() {
           where: {
             farmerId: farmer.id,
             type: 'METEO',
-            title: '🌵 Risque de sécheresse',
-            createdAt: { gte: sixHoursAgo },
+            severity: 'CRITICAL',
+            createdAt: { gte: todayMidnight },
           },
         })
         if (!exists) {
@@ -88,8 +89,8 @@ export async function generateAlertsForAllFarmers() {
           where: {
             farmerId: farmer.id,
             type: 'METEO',
-            title: '🌡️ Stress thermique prévu',
-            createdAt: { gte: sixHoursAgo },
+            severity: 'WARNING',
+            createdAt: { gte: todayMidnight },
           },
         })
         if (!exists) {
@@ -114,7 +115,7 @@ export async function generateAlertsForAllFarmers() {
               parcelleId: parcelle.id,
               type: 'NDVI',
               severity: 'CRITICAL',
-              createdAt: { gte: sixHoursAgo },
+              createdAt: { gte: todayMidnight },
             },
           })
           if (!exists) {
@@ -136,7 +137,7 @@ export async function generateAlertsForAllFarmers() {
               parcelleId: parcelle.id,
               type: 'NDVI',
               severity: 'WARNING',
-              createdAt: { gte: sixHoursAgo },
+              createdAt: { gte: todayMidnight },
             },
           })
           if (!exists) {
@@ -173,17 +174,19 @@ export async function generateAlertsForCoops() {
     },
   })
 
+  const todayMidnight = new Date()
+  todayMidnight.setHours(0, 0, 0, 0)
+
   for (const node of nodes) {
     if (!node.cooperativeId || node.readings.length === 0) continue
     const latest = node.readings[0]
-    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000)
 
     if (latest.soilMoisture && latest.soilMoisture < 0.2) {
       const exists = await prisma.alert.findFirst({
         where: {
           coopId: node.cooperativeId,
           type: 'IOT',
-          createdAt: { gte: sixHoursAgo },
+          createdAt: { gte: todayMidnight },
         },
       })
       if (!exists) {
