@@ -89,6 +89,11 @@ model Farmer {
   activities  Activity[]
   messages    Message[]
   creditRequests CreditRequest[]
+
+  // Scoring fields
+  experienceAnnees  String?
+  revenusAnnexes    String?
+  historicCredit    String?
 }
 
 model CoopAdmin {
