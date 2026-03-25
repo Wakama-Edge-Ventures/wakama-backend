@@ -42,7 +42,7 @@ export async function generateAlertsForAllFarmers() {
           where: {
             farmerId: farmer.id,
             type: 'METEO',
-            title: { contains: 'Fortes pluies' },
+            title: '🌧️ Fortes pluies prévues demain',
             createdAt: { gte: sixHoursAgo },
           },
         })
@@ -65,7 +65,7 @@ export async function generateAlertsForAllFarmers() {
           where: {
             farmerId: farmer.id,
             type: 'METEO',
-            title: { contains: 'Sécheresse' },
+            title: '🌵 Risque de sécheresse',
             createdAt: { gte: sixHoursAgo },
           },
         })
@@ -88,7 +88,7 @@ export async function generateAlertsForAllFarmers() {
           where: {
             farmerId: farmer.id,
             type: 'METEO',
-            title: { contains: 'Chaleur' },
+            title: '🌡️ Stress thermique prévu',
             createdAt: { gte: sixHoursAgo },
           },
         })
@@ -113,6 +113,7 @@ export async function generateAlertsForAllFarmers() {
               farmerId: farmer.id,
               parcelleId: parcelle.id,
               type: 'NDVI',
+              severity: 'CRITICAL',
               createdAt: { gte: sixHoursAgo },
             },
           })
@@ -134,6 +135,7 @@ export async function generateAlertsForAllFarmers() {
               farmerId: farmer.id,
               parcelleId: parcelle.id,
               type: 'NDVI',
+              severity: 'WARNING',
               createdAt: { gte: sixHoursAgo },
             },
           })
