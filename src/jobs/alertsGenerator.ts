@@ -34,8 +34,7 @@ export async function generateAlertsForAllFarmers() {
       const soilMoisture = weather.hourly.soil_moisture_0_to_1cm[i] ?? 0.3
       const precipProb = weather.hourly.precipitation_probability[i] ?? 0
 
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000)
 
       // ALERT 1 — Heavy rain coming
       if (tomorrowPrecip > 20) {
@@ -44,7 +43,7 @@ export async function generateAlertsForAllFarmers() {
             farmerId: farmer.id,
             type: 'METEO',
             title: { contains: 'Fortes pluies' },
-            createdAt: { gte: todayStart },
+            createdAt: { gte: sixHoursAgo },
           },
         })
         if (!exists) {
@@ -67,7 +66,7 @@ export async function generateAlertsForAllFarmers() {
             farmerId: farmer.id,
             type: 'METEO',
             title: { contains: 'Sécheresse' },
-            createdAt: { gte: todayStart },
+            createdAt: { gte: sixHoursAgo },
           },
         })
         if (!exists) {
@@ -90,7 +89,7 @@ export async function generateAlertsForAllFarmers() {
             farmerId: farmer.id,
             type: 'METEO',
             title: { contains: 'Chaleur' },
-            createdAt: { gte: todayStart },
+            createdAt: { gte: sixHoursAgo },
           },
         })
         if (!exists) {
@@ -114,7 +113,7 @@ export async function generateAlertsForAllFarmers() {
               farmerId: farmer.id,
               parcelleId: parcelle.id,
               type: 'NDVI',
-              createdAt: { gte: todayStart },
+              createdAt: { gte: sixHoursAgo },
             },
           })
           if (!exists) {
@@ -135,7 +134,7 @@ export async function generateAlertsForAllFarmers() {
               farmerId: farmer.id,
               parcelleId: parcelle.id,
               type: 'NDVI',
-              createdAt: { gte: todayStart },
+              createdAt: { gte: sixHoursAgo },
             },
           })
           if (!exists) {
@@ -175,15 +174,14 @@ export async function generateAlertsForCoops() {
   for (const node of nodes) {
     if (!node.cooperativeId || node.readings.length === 0) continue
     const latest = node.readings[0]
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000)
 
     if (latest.soilMoisture && latest.soilMoisture < 0.2) {
       const exists = await prisma.alert.findFirst({
         where: {
           coopId: node.cooperativeId,
           type: 'IOT',
-          createdAt: { gte: todayStart },
+          createdAt: { gte: sixHoursAgo },
         },
       })
       if (!exists) {
