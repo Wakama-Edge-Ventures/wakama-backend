@@ -88,6 +88,7 @@ model Farmer {
   weatherHistory WeatherHistory[]
   activities  Activity[]
   messages    Message[]
+  creditRequests CreditRequest[]
 }
 
 model CoopAdmin {
@@ -353,6 +354,21 @@ model Activity {
 
   farmer   Farmer    @relation(fields: [farmerId], references: [id])
   parcelle Parcelle? @relation(fields: [parcelleId], references: [id])
+}
+
+model CreditRequest {
+  id        String   @id @default(cuid())
+  farmerId  String
+  coopId    String?
+  montant   Float
+  duree     Int
+  objet     String
+  message   String?
+  statut    String   @default("PENDING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farmer Farmer @relation(fields: [farmerId], references: [id])
 }
 
 model Message {
