@@ -19,6 +19,7 @@ import iotRoutes from './routes/iot.js'
 import activitiesRoutes from './routes/activities.js'
 import messagesRoutes from './routes/messages.js'
 import creditRequestsRoutes from './routes/creditRequests.js'
+import iotKitRequestsRoutes from './routes/iotKitRequests.js'
 import { collectWeatherForAllParcelles, collectWeatherForAllCoops } from './jobs/weatherCollector.js'
 import { generateAlertsForAllFarmers, generateAlertsForCoops } from './jobs/alertsGenerator.js'
 
@@ -63,6 +64,7 @@ async function bootstrap() {
   app.register(activitiesRoutes)
   app.register(messagesRoutes)
   app.register(creditRequestsRoutes)
+  app.register(iotKitRequestsRoutes)
 
   const port = Number(process.env.PORT) || 4000
 

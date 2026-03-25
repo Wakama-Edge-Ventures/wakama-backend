@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer'
 
-const transporter = nodemailer.createTransport({
+export const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
   secure: true,
@@ -9,6 +9,39 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 })
+
+export async function sendIotKitNotification(data: {
+  coopName: string
+  superficie?: number
+  culture?: string
+  nbMembres?: number
+  hasElectricite: boolean
+  hasConnexion: boolean
+  message?: string
+}) {
+  await transporter.sendMail({
+    from: '"Wakama Farm" <register@wakama.farm>',
+    to: 'wakama.onboarding@gmail.com',
+    subject: `📡 Demande kit IoT — ${data.coopName}`,
+    html: `
+      <div style="font-family: Arial; background: #0D1117; color: #dfe2eb; padding: 32px; border-radius: 12px;">
+        <img src="https://farmer.wakama.farm/wakama-logo.png" height="48" alt="Wakama" style="margin-bottom: 24px;" />
+        <h2 style="color: #ec5b13;">📡 Nouvelle demande de kit IoT</h2>
+        <div style="background: #1a120e; border-radius: 8px; padding: 24px; margin: 16px 0;">
+          <p><b style="color:#ec5b13">Coopérative:</b> ${data.coopName}</p>
+          <p><b style="color:#ec5b13">Superficie:</b> ${data.superficie ?? 'N/A'} ha</p>
+          <p><b style="color:#ec5b13">Culture principale:</b> ${data.culture ?? 'N/A'}</p>
+          <p><b style="color:#ec5b13">Nombre de membres:</b> ${data.nbMembres ?? 'N/A'}</p>
+          <p><b style="color:#ec5b13">Électricité sur site:</b> ${data.hasElectricite ? '✅ Oui' : '❌ Non'}</p>
+          <p><b style="color:#ec5b13">WiFi/4G sur site:</b> ${data.hasConnexion ? '✅ Oui' : '❌ Non'}</p>
+          <p><b style="color:#ec5b13">Message:</b> ${data.message ?? 'Aucun'}</p>
+        </div>
+        <hr style="border-color: #374151;" />
+        <p style="color: #6b7280; font-size: 12px;">Wakama Edge Ventures Inc. — Wyoming, USA</p>
+      </div>
+    `
+  })
+}
 
 export async function sendOnboardingNotification(farmer: {
   id: string

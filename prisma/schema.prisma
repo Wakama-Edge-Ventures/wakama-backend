@@ -356,6 +356,20 @@ model Activity {
   parcelle Parcelle? @relation(fields: [parcelleId], references: [id])
 }
 
+model IotKitRequest {
+  id             String   @id @default(cuid())
+  coopId         String?
+  coopName       String
+  superficie     Float?
+  culture        String?
+  nbMembres      Int?
+  hasElectricite Boolean  @default(false)
+  hasConnexion   Boolean  @default(false)
+  message        String?
+  statut         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+}
+
 model CreditRequest {
   id        String   @id @default(cuid())
   farmerId  String
