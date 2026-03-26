@@ -53,10 +53,11 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  farmer    Farmer?
-  coopAdmin CoopAdmin?
-  mfiAgent  MFIAgent?
-  apiKeys   ApiKey[]
+  farmer           Farmer?
+  coopAdmin        CoopAdmin?
+  mfiAgent         MFIAgent?
+  apiKeys          ApiKey[]
+  institutionUsers InstitutionUser[]
 }
 
 model Farmer {
@@ -88,7 +89,8 @@ model Farmer {
   weatherHistory WeatherHistory[]
   activities  Activity[]
   messages    Message[]
-  creditRequests CreditRequest[]
+  creditRequests  CreditRequest[]
+  creditDecisions CreditDecision[]
 
   // Scoring fields
   experienceAnnees  String?
@@ -388,6 +390,51 @@ model CreditRequest {
   updatedAt DateTime @updatedAt
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
+}
+
+model Institution {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  country   String   @default("CI")
+  logo      String?
+  modules   String[]
+  plan      String   @default("STANDARD")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users     InstitutionUser[]
+  decisions CreditDecision[]
+}
+
+model InstitutionUser {
+  id            String      @id @default(cuid())
+  userId        String
+  institutionId String
+  role          String      @default("ANALYST")
+  createdAt     DateTime    @default(now())
+
+  user        User        @relation(fields: [userId], references: [id])
+  institution Institution @relation(fields: [institutionId], references: [id])
+
+  @@unique([userId, institutionId])
+}
+
+model CreditDecision {
+  id            String   @id @default(cuid())
+  institutionId String
+  farmerId      String
+  montant       Float?
+  taux          Float?
+  duree         Int?
+  statut        String
+  motif         String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+  farmer      Farmer      @relation(fields: [farmerId], references: [id])
 }
 
 model Message {
