@@ -93,13 +93,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const valid = await bcrypt.compare(body.password, user.passwordHash)
     if (!valid) return reply.status(401).send({ error: 'Invalid credentials' })
 
-    const [farmer, institutionUser] = await Promise.all([
-      prisma.farmer.findUnique({ where: { userId: user.id } }),
-      prisma.institutionUser.findFirst({
-        where: { userId: user.id },
-        include: { institution: true }
-      })
-    ])
+    const farmer = await prisma.farmer.findUnique({ where: { userId: user.id } })
+    const institutionUser = await prisma.institutionUser.findFirst({
+      where: { userId: user.id },
+      include: { institution: true }
+    }).catch(() => null)
 
     const token = fastify.jwt.sign(
       { id: user.id, email: user.email, role: user.role },
