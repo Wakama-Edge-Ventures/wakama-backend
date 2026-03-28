@@ -378,16 +378,20 @@ model IotKitRequest {
 }
 
 model CreditRequest {
-  id        String   @id @default(cuid())
-  farmerId  String
-  coopId    String?
-  montant   Float
-  duree     Int
-  objet     String
-  message   String?
-  statut    String   @default("PENDING")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  farmerId       String
+  coopId         String?
+  montant        Float
+  duree          Int
+  objet          String
+  message        String?
+  statut         String   @default("EN_ATTENTE")
+  montantAccorde Float?
+  taux           Float?
+  dureeAccordee  Int?
+  motif          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
