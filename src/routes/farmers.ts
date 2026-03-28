@@ -46,6 +46,15 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
         creditScore: true,
         loans: true,
         alerts: { orderBy: { createdAt: 'desc' }, take: 5 },
+        cooperative: {
+          select: {
+            id: true,
+            name: true,
+            institutionId: true,
+            region: true,
+            filiere: true,
+          },
+        },
       },
     })
 

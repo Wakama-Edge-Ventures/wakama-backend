@@ -128,6 +128,9 @@ model Cooperative {
   logoUrl      String?
   adminUserId  String?
 
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
   farmers   Farmer[]
   coopAdmin CoopAdmin?
   iotNode   IoTNode?
@@ -410,6 +413,7 @@ model Institution {
   users         InstitutionUser[]
   decisions     CreditDecision[]
   scoringConfig InstitutionScoringConfig?
+  cooperatives  Cooperative[]
 }
 
 model InstitutionUser {
