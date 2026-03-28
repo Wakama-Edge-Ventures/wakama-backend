@@ -403,8 +403,9 @@ model Institution {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  users     InstitutionUser[]
-  decisions CreditDecision[]
+  users         InstitutionUser[]
+  decisions     CreditDecision[]
+  scoringConfig InstitutionScoringConfig?
 }
 
 model InstitutionUser {
@@ -435,6 +436,28 @@ model CreditDecision {
 
   institution Institution @relation(fields: [institutionId], references: [id])
   farmer      Farmer      @relation(fields: [farmerId], references: [id])
+}
+
+model InstitutionScoringConfig {
+  id            String      @id @default(cuid())
+  institutionId String      @unique
+  institution   Institution @relation(fields: [institutionId], references: [id])
+
+  weightC1      Float    @default(30)
+  weightC2      Float    @default(25)
+  weightC3      Float    @default(25)
+  weightC4      Float    @default(20)
+
+  c1Rules          Json?
+  c2Rules          Json?
+  c3Rules          Json?
+  c4Rules          Json?
+  products         Json?
+  creditConditions Json?
+  riskProfile      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Message {

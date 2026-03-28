@@ -122,4 +122,83 @@ export default async function institutionsRoutes(fastify: FastifyInstance) {
 
     return decision
   })
+
+  // GET /v1/institutions/:id/scoring-config
+  fastify.get('/v1/institutions/:id/scoring-config', async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const config = await prisma.institutionScoringConfig.findUnique({
+      where: { institutionId: id }
+    })
+
+    if (!config) {
+      return {
+        institutionId: id,
+        weightC1: 30,
+        weightC2: 25,
+        weightC3: 25,
+        weightC4: 20,
+        c1Rules: null,
+        c2Rules: null,
+        c3Rules: null,
+        c4Rules: null,
+        products: null,
+        creditConditions: null,
+        riskProfile: null,
+      }
+    }
+
+    return config
+  })
+
+  // PATCH /v1/institutions/:id/scoring-config
+  fastify.patch('/v1/institutions/:id/scoring-config', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as {
+      weightC1?: number
+      weightC2?: number
+      weightC3?: number
+      weightC4?: number
+      c1Rules?: object
+      c2Rules?: object
+      c3Rules?: object
+      c4Rules?: object
+      products?: object
+      creditConditions?: object
+      riskProfile?: object
+    }
+
+    const config = await prisma.institutionScoringConfig.upsert({
+      where: { institutionId: id },
+      update: {
+        ...(body.weightC1 !== undefined && { weightC1: body.weightC1 }),
+        ...(body.weightC2 !== undefined && { weightC2: body.weightC2 }),
+        ...(body.weightC3 !== undefined && { weightC3: body.weightC3 }),
+        ...(body.weightC4 !== undefined && { weightC4: body.weightC4 }),
+        ...(body.c1Rules !== undefined && { c1Rules: body.c1Rules }),
+        ...(body.c2Rules !== undefined && { c2Rules: body.c2Rules }),
+        ...(body.c3Rules !== undefined && { c3Rules: body.c3Rules }),
+        ...(body.c4Rules !== undefined && { c4Rules: body.c4Rules }),
+        ...(body.products !== undefined && { products: body.products }),
+        ...(body.creditConditions !== undefined && { creditConditions: body.creditConditions }),
+        ...(body.riskProfile !== undefined && { riskProfile: body.riskProfile }),
+      },
+      create: {
+        institutionId: id,
+        weightC1: body.weightC1 ?? 30,
+        weightC2: body.weightC2 ?? 25,
+        weightC3: body.weightC3 ?? 25,
+        weightC4: body.weightC4 ?? 20,
+        c1Rules: body.c1Rules,
+        c2Rules: body.c2Rules,
+        c3Rules: body.c3Rules,
+        c4Rules: body.c4Rules,
+        products: body.products,
+        creditConditions: body.creditConditions,
+        riskProfile: body.riskProfile,
+      }
+    })
+
+    return config
+  })
 }
