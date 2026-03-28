@@ -109,10 +109,52 @@ export default async function authRoutes(fastify: FastifyInstance) {
       role: user.role,
       email: user.email,
       farmerId: farmer?.id ?? null,
-      institutionId: institutionUser?.institutionId ?? null,
+      institutionId: institutionUser?.institution?.id ?? null,
       institutionName: institutionUser?.institution?.name ?? null,
       institutionType: institutionUser?.institution?.type ?? null,
       modules: institutionUser?.institution?.modules ?? [],
+    }
+  })
+
+  // POST /v1/auth/institution-login
+  fastify.post('/v1/auth/institution-login', async (request, reply) => {
+    const body = request.body as { email: string; password: string }
+
+    const user = await prisma.user.findUnique({ where: { email: body.email } })
+    if (!user) return reply.status(401).send({ error: 'Invalid credentials' })
+
+    const valid = await bcrypt.compare(body.password, user.passwordHash)
+    if (!valid) return reply.status(401).send({ error: 'Invalid credentials' })
+
+    if (user.role !== 'INSTITUTION_ADMIN') {
+      return reply.status(403).send({ error: 'Access denied. Institution admin account required.' })
+    }
+
+    const institutionUser = await prisma.institutionUser.findFirst({
+      where: { userId: user.id },
+      include: { institution: true }
+    }).catch(() => null)
+
+    if (!institutionUser) {
+      return reply.status(403).send({ error: 'No institution linked to this account.' })
+    }
+
+    const token = fastify.jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      { expiresIn: '7d' }
+    )
+
+    return {
+      token,
+      role: user.role,
+      email: user.email,
+      institutionId: institutionUser.institution.id,
+      institutionName: institutionUser.institution.name,
+      institutionType: institutionUser.institution.type,
+      institutionPlan: institutionUser.institution.plan,
+      institutionLogo: institutionUser.institution.logo ?? null,
+      modules: institutionUser.institution.modules,
+      institutionUserRole: institutionUser.role,
     }
   })
 

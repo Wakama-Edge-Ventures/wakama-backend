@@ -15,6 +15,7 @@ enum Role {
   COOP_ADMIN
   MFI_AGENT
   SUPERADMIN
+  INSTITUTION_ADMIN
 }
 
 enum KycStatus {
