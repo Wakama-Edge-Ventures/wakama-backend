@@ -1,6 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../lib/prisma.js'
 import { calculateWakamaScore } from '../lib/wakamaScore.js'
+import {
+  buildScoreExplanation,
+  loadDossierBundle,
+} from '../lib/institutionalScoring.js'
 
 export default async function scoresRoutes(fastify: FastifyInstance) {
 
@@ -11,55 +15,9 @@ export default async function scoresRoutes(fastify: FastifyInstance) {
     const { institutionId } = request.query as { institutionId?: string }
 
     try {
-      const result = await calculateWakamaScore(farmerId)
-
-      let finalScore = result.score
-      let weights = { c1: 30, c2: 25, c3: 25, c4: 20 }
-      let products: Array<{ name: string; minScore: number; eligible: boolean; [key: string]: any }> | null = null
-
-      if (institutionId) {
-        const config = await prisma.institutionScoringConfig.findUnique({
-          where: { institutionId }
-        })
-
-        if (config) {
-          weights = {
-            c1: config.weightC1,
-            c2: config.weightC2,
-            c3: config.weightC3,
-            c4: config.weightC4,
-          }
-
-          // Recompute final score with institution-specific weights
-          const scoreWeighted = (
-            result.scoreC1 * (config.weightC1 / 100) +
-            result.scoreC2 * (config.weightC2 / 100) +
-            result.scoreC3 * (config.weightC3 / 100) +
-            result.scoreC4 * (config.weightC4 / 100)
-          )
-          finalScore = Math.round(scoreWeighted * 10)
-
-          // Process custom products from config
-          if (config.products) {
-            const rawProducts = config.products as any[]
-            if (Array.isArray(rawProducts)) {
-              products = rawProducts.map((p: any) => ({
-                ...p,
-                eligible: finalScore >= (p.minScore ?? 0),
-              }))
-            }
-          }
-        }
-      }
-
-      const status = finalScore >= 700 ? 'EXCELLENT'
-        : finalScore >= 500 ? 'BON'
-        : finalScore >= 300 ? 'MOYEN'
-        : 'FAIBLE'
-
-      const riskLevel = finalScore >= 600 ? 'LOW'
-        : finalScore >= 400 ? 'MEDIUM'
-        : 'HIGH'
+      const bundle = await loadDossierBundle(farmerId, institutionId)
+      const explanation = buildScoreExplanation(bundle)
+      const result = bundle.scoreResult
 
       // Save score to DB (always persist the base score without custom weights)
       await prisma.creditScore.upsert({
@@ -102,14 +60,58 @@ export default async function scoresRoutes(fastify: FastifyInstance) {
       if (institutionId) {
         return {
           ...result,
-          score: finalScore,
-          weights,
+          score: bundle.finalScore,
+          scoreMax: bundle.scoreMax,
+          status: bundle.scoreStatus,
+          riskLevel: bundle.riskLevel,
+          generatedAt: bundle.generatedAt,
+          montantMin: result.montantMinSuggere,
+          montantMax: result.montantMaxSuggere,
+          modelVersion: explanation.modelVersion,
+          confidenceLevel: explanation.confidenceLevel,
+          readinessStatus: explanation.readinessStatus,
+          committeeReadiness: {
+            status: explanation.committeeReadiness.status,
+            score: explanation.committeeReadiness.score,
+            missingRequiredItems: explanation.committeeReadiness.missingRequiredItems,
+            completedItems: explanation.committeeReadiness.completedItems,
+          },
+          positiveFactors: explanation.positiveFactors,
+          riskFactors: explanation.riskFactors,
+          missingData: explanation.missingData,
+          nextBestActions: explanation.nextBestActions,
+          scoreBreakdown: explanation.scoreBreakdown,
+          weightsUsed: explanation.weightsUsed,
+          weights: bundle.weights,
           institutionId,
-          ...(products !== null && { products }),
+          ...(bundle.products !== null && { products: bundle.products }),
         }
       }
 
-      return result
+      return {
+        ...result,
+        scoreMax: bundle.scoreMax,
+        status: bundle.scoreStatus,
+        riskLevel: bundle.riskLevel,
+        generatedAt: bundle.generatedAt,
+        montantMin: result.montantMinSuggere,
+        montantMax: result.montantMaxSuggere,
+        modelVersion: explanation.modelVersion,
+        confidenceLevel: explanation.confidenceLevel,
+        readinessStatus: explanation.readinessStatus,
+        committeeReadiness: {
+          status: explanation.committeeReadiness.status,
+          score: explanation.committeeReadiness.score,
+          missingRequiredItems: explanation.committeeReadiness.missingRequiredItems,
+          completedItems: explanation.committeeReadiness.completedItems,
+        },
+        positiveFactors: explanation.positiveFactors,
+        riskFactors: explanation.riskFactors,
+        missingData: explanation.missingData,
+        nextBestActions: explanation.nextBestActions,
+        scoreBreakdown: explanation.scoreBreakdown,
+        weightsUsed: explanation.weightsUsed,
+      }
     } catch (err: any) {
       return reply.status(500).send({
         error: 'Score calculation failed',

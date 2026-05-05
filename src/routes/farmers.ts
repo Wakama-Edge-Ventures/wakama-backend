@@ -1,9 +1,13 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../lib/prisma.js'
+import { buildDossierResponse, loadDossierBundle } from '../lib/institutionalScoring.js'
+import { getUserContext, optionalAuth, verifyToken } from '../middleware/auth.js'
+import { canAccessFarmer } from '../middleware/ownership.js'
+import { asObject, hasDefinedValue, hasForbiddenKey } from '../lib/validation.js'
 
 export default async function farmersRoutes(fastify: FastifyInstance) {
   // GET /v1/farmers
-  fastify.get('/v1/farmers', async (request, reply) => {
+  fastify.get('/', { preHandler: optionalAuth }, async (request, reply) => {
     const { page = '1', limit = '20', search, region, cooperativeId } = request.query as {
       page?: string
       limit?: string
@@ -27,6 +31,21 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
       ]
     }
 
+    const context = await getUserContext(request)
+    if (context) {
+      if (context.role === 'FARMER') {
+        where.id = context.farmerId ?? '__none__'
+      } else if (context.role === 'COOP_ADMIN') {
+        if (cooperativeId && context.cooperativeId && cooperativeId !== context.cooperativeId) {
+          where.id = '__none__'
+        } else {
+          where.cooperativeId = context.cooperativeId ?? '__none__'
+        }
+      } else if (context.role === 'INSTITUTION_ADMIN' || context.role === 'MFI_AGENT') {
+        where.cooperative = { institutionId: context.institutionId ?? '__none__' }
+      }
+    }
+
     const [data, total] = await Promise.all([
       prisma.farmer.findMany({ where, skip, take: pageSize, orderBy: { onboardedAt: 'desc' } }),
       prisma.farmer.count({ where }),
@@ -36,7 +55,7 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
   })
 
   // GET /v1/farmers/:id
-  fastify.get('/v1/farmers/:id', async (request, reply) => {
+  fastify.get('/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
 
     const farmer = await prisma.farmer.findUnique({
@@ -62,8 +81,25 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
     return farmer
   })
 
+  // GET /v1/farmers/:id/dossier-comite
+  fastify.get('/:id/dossier-comite', { preHandler: verifyToken }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const context = await getUserContext(request)
+    if (!context) return reply.status(401).send({ error: 'Unauthorized' })
+
+    const canAccess = await canAccessFarmer(context, id)
+    if (canAccess === null) return reply.status(404).send({ error: 'Farmer not found' })
+    if (!canAccess) return reply.status(403).send({ error: 'Forbidden' })
+
+    const bundle = await loadDossierBundle(id, context.institutionId, {
+      useCooperativeInstitutionFallback: true,
+    })
+    return buildDossierResponse(bundle, context)
+  })
+
   // POST /v1/farmers
-  fastify.post('/v1/farmers', async (request, reply) => {
+  fastify.post('/', async (request, reply) => {
     const body = request.body as {
       firstName: string
       lastName: string
@@ -96,28 +132,23 @@ export default async function farmersRoutes(fastify: FastifyInstance) {
   })
 
   // PATCH /v1/farmers/:id
-  fastify.patch('/v1/farmers/:id', async (request, reply) => {
+  fastify.patch('/:id', { preHandler: verifyToken }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    const body = request.body as {
-      firstName?: string
-      lastName?: string
-      phone?: string
-      region?: string
-      village?: string
-      surface?: number
-      photoUrl?: string
-      cniUrl?: string
-      attestationUrl?: string
-      cooperativeId?: string | null
-      lat?: number
-      lng?: number
-      experienceAnnees?: string
-      revenusAnnexes?: string
-      historicCredit?: string
+    const body = asObject(request.body)
+    if (!body || !hasDefinedValue(body)) {
+      return reply.status(400).send({ error: 'Invalid payload' })
     }
 
-    const farmer = await prisma.farmer.findUnique({ where: { id } })
-    if (!farmer) return reply.status(404).send({ error: 'Farmer not found' })
+    if (hasForbiddenKey(body, ['id', 'userId', 'role', 'passwordHash', 'createdAt', 'updatedAt'])) {
+      return reply.status(400).send({ error: 'Invalid payload' })
+    }
+
+    const context = await getUserContext(request)
+    if (!context) return reply.status(401).send({ error: 'Unauthorized' })
+
+    const canAccess = await canAccessFarmer(context, id)
+    if (canAccess === null) return reply.status(404).send({ error: 'Farmer not found' })
+    if (!canAccess) return reply.status(403).send({ error: 'Forbidden' })
 
     const updated = await prisma.farmer.update({
       where: { id },

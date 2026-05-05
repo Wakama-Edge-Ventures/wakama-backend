@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../lib/prisma.js'
-import { verifyToken } from '../middleware/auth.js'
+import { getAuthUser, getUserContext, optionalAuth, verifyToken } from '../middleware/auth.js'
+import { canAccessCooperative } from '../middleware/ownership.js'
+import { asObject, hasDefinedValue, hasForbiddenKey } from '../lib/validation.js'
 
 export default async function cooperativesRoutes(fastify: FastifyInstance) {
   // GET /v1/cooperatives
-  fastify.get('/v1/cooperatives', async (request, reply) => {
+  fastify.get('/v1/cooperatives', { preHandler: optionalAuth }, async (request, reply) => {
     const { page = '1', limit = '20' } = request.query as {
       page?: string
       limit?: string
@@ -14,9 +16,29 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
     const pageSize = Math.min(100, Math.max(1, parseInt(limit)))
     const skip = (pageNum - 1) * pageSize
 
+    const where: any = {}
+    const context = await getUserContext(request)
+
+    if (context) {
+      if (context.role === 'COOP_ADMIN') {
+        where.id = context.cooperativeId ?? '__none__'
+      } else if (context.role === 'INSTITUTION_ADMIN' || context.role === 'MFI_AGENT') {
+        where.institutionId = context.institutionId ?? '__none__'
+      } else if (context.role === 'FARMER') {
+        const farmer = context.farmerId
+          ? await prisma.farmer.findUnique({
+              where: { id: context.farmerId },
+              select: { cooperativeId: true },
+            })
+          : null
+
+        where.id = farmer?.cooperativeId ?? '__none__'
+      }
+    }
+
     const [data, total] = await Promise.all([
-      prisma.cooperative.findMany({ skip, take: pageSize, orderBy: { name: 'asc' } }),
-      prisma.cooperative.count(),
+      prisma.cooperative.findMany({ where, skip, take: pageSize, orderBy: { name: 'asc' } }),
+      prisma.cooperative.count({ where }),
     ])
 
     return { data, total, page: pageNum, pageSize }
@@ -36,7 +58,7 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
       blockchainId?: string
     }
 
-    const caller = request.user as { id: string } | undefined
+    const caller = getAuthUser(request)
     if (!body.name) return reply.status(400).send({ error: 'name is required' })
 
     const cooperative = await prisma.cooperative.create({
@@ -77,20 +99,23 @@ export default async function cooperativesRoutes(fastify: FastifyInstance) {
   })
 
   // PATCH /v1/cooperatives/:id
-  fastify.patch('/v1/cooperatives/:id', async (request, reply) => {
+  fastify.patch('/v1/cooperatives/:id', { preHandler: verifyToken }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    const body = request.body as {
-      name?: string
-      region?: string
-      filiere?: string
-      surface?: number
-      rccm?: string
-      logoUrl?: string
-      institutionId?: string | null
+    const body = asObject(request.body)
+    if (!body || !hasDefinedValue(body)) {
+      return reply.status(400).send({ error: 'Invalid payload' })
     }
 
-    const existing = await prisma.cooperative.findUnique({ where: { id } })
-    if (!existing) return reply.status(404).send({ error: 'Cooperative not found' })
+    if (hasForbiddenKey(body, ['id', 'adminUserId', 'createdAt', 'updatedAt'])) {
+      return reply.status(400).send({ error: 'Invalid payload' })
+    }
+
+    const context = await getUserContext(request)
+    if (!context) return reply.status(401).send({ error: 'Unauthorized' })
+
+    const canAccess = await canAccessCooperative(context, id)
+    if (canAccess === null) return reply.status(404).send({ error: 'Cooperative not found' })
+    if (!canAccess) return reply.status(403).send({ error: 'Forbidden' })
 
     const updated = await prisma.cooperative.update({
       where: { id },

@@ -1,14 +1,20 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../lib/prisma.js'
+import { createIotRateLimit } from '../middleware/rateLimit.js'
 
-// Valid device keys (in production, store in DB)
-const VALID_DEVICE_KEYS: Record<string, string> = {
+const FALLBACK_DEVICE_KEYS: Record<string, string> = {
   'etra_esp32_001__K2v9F6pQxW3dR8nH1sL4aT7yU0iO5pB': 'coop-etra-001',
 }
 
+const VALID_DEVICE_KEYS: Record<string, string> = {
+  ...FALLBACK_DEVICE_KEYS,
+  ...parseDeviceKeysFromEnv(process.env.IOT_DEVICE_KEYS),
+}
+
 export default async function iotRoutes(fastify: FastifyInstance) {
+  const iotRateLimit = createIotRateLimit()
   // POST /v1/iot/ingest — receive data from ESP32
-  fastify.post('/v1/iot/ingest', async (request, reply) => {
+  fastify.post('/v1/iot/ingest', { preHandler: iotRateLimit }, async (request, reply) => {
     const deviceKey = request.headers['x-device-key'] as string
 
     if (!deviceKey || !VALID_DEVICE_KEYS[deviceKey]) {
@@ -169,4 +175,20 @@ export default async function iotRoutes(fastify: FastifyInstance) {
 
     return readings
   })
+}
+
+function parseDeviceKeysFromEnv(value?: string): Record<string, string> {
+  if (!value) return {}
+
+  return value
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((acc, entry) => {
+      const [deviceKey, coopId] = entry.split(':').map(part => part?.trim())
+      if (!deviceKey || !coopId) return acc
+
+      acc[deviceKey] = coopId
+      return acc
+    }, {})
 }

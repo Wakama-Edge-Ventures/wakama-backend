@@ -1,12 +1,15 @@
 import { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
-import { verifyToken } from '../middleware/auth.js'
+import { getAuthUser, getUserContext, verifyToken } from '../middleware/auth.js'
 import { sendOnboardingNotification } from '../lib/mailer.js'
+import { createAuthRateLimit } from '../middleware/rateLimit.js'
 
 export default async function authRoutes(fastify: FastifyInstance) {
+  const authRateLimit = createAuthRateLimit()
+
   // POST /v1/auth/register
-  fastify.post('/v1/auth/register', async (request, reply) => {
+  fastify.post('/v1/auth/register', { preHandler: authRateLimit }, async (request, reply) => {
     const body = request.body as {
       email: string
       password: string
@@ -84,7 +87,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/auth/login
-  fastify.post('/v1/auth/login', async (request, reply) => {
+  fastify.post('/v1/auth/login', { preHandler: authRateLimit }, async (request, reply) => {
     const body = request.body as { email: string; password: string }
 
     const user = await prisma.user.findUnique({ where: { email: body.email } })
@@ -117,13 +120,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/auth/institution-login
-  fastify.post('/v1/auth/institution-login', async (request, reply) => {
+  fastify.post('/v1/auth/institution-login', { preHandler: authRateLimit }, async (request, reply) => {
     const body = request.body as { email: string; password: string }
 
+    // TEMP diagnostic logs
+    console.log('[institution-login] email received:', body.email)
+
     const user = await prisma.user.findUnique({ where: { email: body.email } })
+    console.log('[institution-login] user found:', !!user, '| role:', user?.role ?? 'N/A')
     if (!user) return reply.status(401).send({ error: 'Invalid credentials' })
 
     const valid = await bcrypt.compare(body.password, user.passwordHash)
+    console.log('[institution-login] bcrypt.compare result:', valid)
     if (!valid) return reply.status(401).send({ error: 'Invalid credentials' })
 
     if (user.role !== 'INSTITUTION_ADMIN') {
@@ -134,6 +142,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       where: { userId: user.id },
       include: { institution: true }
     }).catch(() => null)
+
+    console.log('[institution-login] institutionUser found:', !!institutionUser, '| role:', institutionUser?.role ?? 'N/A')
 
     if (!institutionUser) {
       return reply.status(403).send({ error: 'No institution linked to this account.' })
@@ -160,26 +170,24 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // GET /v1/auth/me
   fastify.get('/v1/auth/me', { preHandler: verifyToken }, async (request, reply) => {
-    const payload = request.user as { id: string }
+    const authUser = getAuthUser(request)
+    if (!authUser) return reply.status(401).send({ error: 'Unauthorized' })
+
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
+      where: { id: authUser.id },
       select: { id: true, email: true, role: true, createdAt: true },
     })
     if (!user) return reply.status(404).send({ error: 'User not found' })
 
     const farmer = await prisma.farmer.findUnique({ where: { userId: user.id } })
-
-    let coopId: string | null = null
-    if (user.role === 'COOP_ADMIN') {
-      const coop = await prisma.cooperative.findFirst({ where: { adminUserId: user.id } })
-      coopId = coop?.id ?? null
-    }
+    const context = await getUserContext(request)
+    const coopId = context?.cooperativeId ?? null
 
     return { ...user, farmer, coopId }
   })
 
   // POST /v1/auth/send-verification
-  fastify.post('/v1/auth/send-verification', async (request, reply) => {
+  fastify.post('/v1/auth/send-verification', { preHandler: authRateLimit }, async (request, reply) => {
     const { email, firstName } = request.body as { email: string; firstName: string }
 
     const existing = await prisma.user.findUnique({ where: { email } })
@@ -196,7 +204,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   })
 
   // POST /v1/auth/verify-code
-  fastify.post('/v1/auth/verify-code', async (request, reply) => {
+  fastify.post('/v1/auth/verify-code', { preHandler: authRateLimit }, async (request, reply) => {
     const { email, code } = request.body as { email: string; code: string }
     const { verifyCode } = await import('../lib/verificationCodes.js')
 
