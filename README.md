@@ -99,3 +99,14 @@ New route module:
 
 Detailed phase doc:
 - `docs/PHASE_27B_INSURANCE_ROUTES_RAX_WEATHER_NDVI_HYDRO.md`
+
+## Phase 27D.2 (Assurance Pilot Institution Admin Seed)
+
+- Seed command: `npm run seed:assurance-admin`
+- Creates or refreshes one internal pilot institution admin account for `POST /v1/auth/institution-login`.
+- Uses `SEED_ASSURANCE_ADMIN_PASSWORD` (local fallback only outside production).
+- This seed does not create business/demo farmer insurance records.
+- Rotation is mandatory before production partner demos.
+
+Reference:
+- `docs/PHASE_27D2_ASSURANCE_PILOT_ADMIN_ACCOUNT.md`
