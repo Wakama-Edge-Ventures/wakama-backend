@@ -72,3 +72,30 @@ Important:
 - Wakama is not an insurer and does not issue policies or indemnify.
 - Insurer remains the decision maker on eligibility, pricing, issuance, and indemnification.
 - Do not create real Morocco farmers before applying DB migration/schema changes and validating routes.
+
+## Phase 27B (Insurance Workflow + RAX + Hydro/Weather/NDVI + Evidence Bundles)
+
+Implemented backend workflow layer under `/v1/insurance`:
+- Insurance applications (draft/list/detail/submit + technical summary).
+- Mission creation, assignment, status tracking.
+- Field audit sync with canonical hash comparison and mismatch handling.
+- RAX technical scoring engine (`RAX_BRUT = G * F * D`, `WRS = (RAX_BRUT/25)*100`) with technical tier outputs only.
+- Hydro risk helper using Morocco dams/rivers/flood/risk-zone references.
+- Open-Meteo historical archive cache/fetch service with safe degraded mode.
+- NDVI history service foundation from `NdviHistory` table with explicit unavailable mode.
+- Evidence bundle generation + anchor queue (non-blocking async mode).
+
+New service modules:
+- `src/lib/insurance/raxEngine.ts`
+- `src/lib/insurance/hydroRisk.ts`
+- `src/lib/insurance/weatherArchive.ts`
+- `src/lib/insurance/ndviHistory.ts`
+- `src/lib/insurance/insuranceWorkflow.ts`
+- `src/lib/insurance/insuranceEvidence.ts`
+- `src/lib/insurance/insuranceValidation.ts`
+
+New route module:
+- `src/routes/insurance.ts` (registered with prefix `/v1/insurance`)
+
+Detailed phase doc:
+- `docs/PHASE_27B_INSURANCE_ROUTES_RAX_WEATHER_NDVI_HYDRO.md`

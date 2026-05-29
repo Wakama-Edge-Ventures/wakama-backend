@@ -24,6 +24,7 @@ import iotKitRequestsRoutes from './routes/iotKitRequests.js'
 import institutionsRoutes from './routes/institutions.js'
 import moroccoRoutes from './routes/morocco.js'
 import insuranceReferenceRoutes from './routes/insuranceReferences.js'
+import insuranceRoutes from './routes/insurance.js'
 import { collectWeatherForAllParcelles, collectWeatherForAllCoops } from './jobs/weatherCollector.js'
 import { generateAlertsForAllFarmers, generateAlertsForCoops } from './jobs/alertsGenerator.js'
 import { getAllowedCorsOrigins } from './lib/security.js'
@@ -134,6 +135,7 @@ async function bootstrap() {
   app.register(institutionsRoutes)
   app.register(moroccoRoutes)
   app.register(insuranceReferenceRoutes)
+  app.register(insuranceRoutes, { prefix: '/v1/insurance' })
 
   const preferredPort = Number(process.env.PORT) || 4000
   const port = await listenWithFallback(preferredPort)

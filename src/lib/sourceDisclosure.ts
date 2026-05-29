@@ -15,10 +15,10 @@ export interface SourceDisclosure {
 }
 
 const BASE_DISCLAIMER_FR =
-  "Wakama fournit des donnees techniques de reference. L'assureur reste seul decisionnaire pour l'eligibilite, la tarification commerciale, l'emission de police et l'indemnisation."
+  "Wakama structure le risque technique et les preuves d'integrite. L'assureur reste seul decisionnaire pour l'eligibilite, la tarification commerciale, l'emission de police et l'indemnisation. Les donnees peuvent etre LIVE, SEED_DEMO, EXCEL_IMPORT ou MANUAL_ESTIMATE. L'ancrage blockchain/IPFS est un horodatage d'integrite et non une decision legale ou reglementaire."
 
 const BASE_DISCLAIMER_EN =
-  'Wakama provides technical reference data. The insurer remains the sole decision-maker for eligibility, commercial pricing, policy issuance, and indemnification.'
+  'Wakama provides technical risk structuring and integrity evidence. The insurer remains the sole decision-maker for eligibility, commercial pricing, policy issuance, and indemnification. Data may be LIVE, SEED_DEMO, EXCEL_IMPORT, or MANUAL_ESTIMATE. Blockchain/IPFS anchoring is integrity timestamping, not a legal or regulatory decision.'
 
 export function buildSourceDisclosure(input?: SourceDisclosureInput): SourceDisclosure {
   const source = (input?.source?.trim() || 'SEED_DEMO') as SourceLabel

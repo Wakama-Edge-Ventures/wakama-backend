@@ -85,3 +85,8 @@ Not run in this implementation:
 - `prisma migrate deploy`
 - `prisma db push`
 - any reset command
+
+## Follow-up Phase
+
+Phase 27B implements the functional insurance workflow layer (applications, missions, field audit sync, RAX engine, hydro/weather/NDVI services, and evidence bundle routes):  
+`docs/PHASE_27B_INSURANCE_ROUTES_RAX_WEATHER_NDVI_HYDRO.md`

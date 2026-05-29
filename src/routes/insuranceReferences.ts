@@ -1,8 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../lib/prisma.js'
 import { buildSourceDisclosure } from '../lib/sourceDisclosure.js'
-import { getPinataConfigStatus } from '../lib/evidence/pinata.js'
-import { getSolanaConfigStatus } from '../lib/evidence/solana.js'
 
 function withDisclosure<T extends Record<string, unknown>>(
   row: T,
@@ -122,21 +120,4 @@ export default async function insuranceReferenceRoutes(fastify: FastifyInstance)
     }
   })
 
-  fastify.get('/v1/insurance/evidence/health', async () => {
-    const pinata = getPinataConfigStatus()
-    const solana = getSolanaConfigStatus()
-    const ready =
-      pinata.pinataUploadEnabled &&
-      pinata.hasJwt &&
-      solana.anchoringEnabled &&
-      solana.rpcUrlConfigured &&
-      solana.privateKeyConfigured
-
-    return {
-      pinataUploadEnabled: pinata.pinataUploadEnabled,
-      anchoringEnabled: solana.anchoringEnabled,
-      solanaCluster: solana.cluster,
-      mode: ready ? 'READY' : 'DISABLED_SAFE',
-    }
-  })
 }
