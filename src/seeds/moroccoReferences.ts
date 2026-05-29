@@ -39,36 +39,45 @@ async function seedMoroccoReferences() {
     },
   })
 
-  await prisma.moroccoDam.upsert({
+  const existingMakhazine = await prisma.moroccoDam.findUnique({
     where: { name: 'Oued El Makhazine' },
-    update: {
-      basin: 'Loukkos',
-      province: 'Larache',
-      commune: 'Ksar El-Kébir',
-      lat: 35.003,
-      lng: -5.732,
-      sourceType: 'MANUAL',
-      confidence: 'MEDIUM',
-      sourceUrl: null,
-      riverName: 'Oued Loukkos',
-      operator: 'UNKNOWN_MANUAL',
-    },
-    create: {
-      name: 'Oued El Makhazine',
-      arabicName: null,
-      basin: 'Loukkos',
-      province: 'Larache',
-      commune: 'Ksar El-Kébir',
-      lat: 35.003,
-      lng: -5.732,
-      capacityMm3: null,
-      riverName: 'Oued Loukkos',
-      operator: 'UNKNOWN_MANUAL',
-      sourceUrl: null,
-      sourceType: 'MANUAL',
-      confidence: 'MEDIUM',
-    },
+    select: { id: true, sourceType: true },
   })
+
+  if (existingMakhazine?.sourceType === 'EXCEL_IMPORT') {
+    console.log('[Seed][Morocco] Oued El Makhazine already from EXCEL_IMPORT, keeping imported precision.')
+  } else {
+    await prisma.moroccoDam.upsert({
+      where: { name: 'Oued El Makhazine' },
+      update: {
+        basin: 'Loukkos',
+        province: 'Larache',
+        commune: 'Ksar El-Kébir',
+        lat: 35.003,
+        lng: -5.732,
+        sourceType: 'MANUAL',
+        confidence: 'MEDIUM',
+        sourceUrl: null,
+        riverName: 'Oued Loukkos',
+        operator: 'UNKNOWN_MANUAL',
+      },
+      create: {
+        name: 'Oued El Makhazine',
+        arabicName: null,
+        basin: 'Loukkos',
+        province: 'Larache',
+        commune: 'Ksar El-Kébir',
+        lat: 35.003,
+        lng: -5.732,
+        capacityMm3: null,
+        riverName: 'Oued Loukkos',
+        operator: 'UNKNOWN_MANUAL',
+        sourceUrl: null,
+        sourceType: 'MANUAL',
+        confidence: 'MEDIUM',
+      },
+    })
+  }
 
   await prisma.moroccoRiverSegment.upsert({
     where: { name: 'Loukkos / Oued Loukkos (Pilot Segment)' },
