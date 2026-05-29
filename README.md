@@ -20,3 +20,55 @@ Phase 27A backend foundation is now additive in code and schema with:
 ## Important Safety Note
 
 Do not create real Morocco farmer records before applying the Phase 27A database migration/schema update in local/staging and validating farmer route protections.
+
+## Phase 27A.1 (Morocco Dams Excel Import)
+
+- Excel import script: `src/seeds/importMoroccoDamsFromExcel.ts`
+  - Dry-run: `npx tsx src/seeds/importMoroccoDamsFromExcel.ts --dry-run`
+  - Write: `npx tsx src/seeds/importMoroccoDamsFromExcel.ts --write`
+- Data source is imported reference (`EXCEL_IMPORT`) and not treated as official.
+- Review artifacts:
+  - `docs/MOROCCO_DAMS_IMPORT_REVIEW.md`
+  - `data/morocco/morocco-dams-imported-preview.json`
+  - `data/morocco/morocco-dams-missing-coordinates.json`
+  - `data/morocco/morocco-dams-invalid-rows.json`
+
+## Phase 27A.2 (Insurance Backbone Foundation)
+
+Added additive data backbone for Morocco insurance MVP preparation:
+- Morocco geography/crop/season/agro-climatic/risk reference models.
+- Insurance reference catalogs (threats, vulnerabilities, claim causes/statuses, alert thresholds, pricing/tax parameter sets).
+- RAX foundation models and parameter sets (technical).
+- Agent profile foundation.
+- Evidence/IPFS/Solana anchoring foundation tables and safe non-blocking service stubs.
+
+New reference routes (GET only):
+- `/v1/morocco/regions`
+- `/v1/morocco/provinces`
+- `/v1/morocco/communes`
+- `/v1/morocco/cities`
+- `/v1/morocco/crops`
+- `/v1/morocco/crop-seasons`
+- `/v1/morocco/agro-climatic-zones`
+- `/v1/morocco/risk-zones`
+- `/v1/morocco/dams`
+- `/v1/morocco/river-segments`
+- `/v1/morocco/flood-risk-zones`
+- `/v1/insurance/references`
+- `/v1/insurance/references/threats`
+- `/v1/insurance/references/vulnerabilities`
+- `/v1/insurance/references/rax-parameters`
+- `/v1/insurance/references/claim-causes`
+- `/v1/insurance/references/claim-statuses`
+- `/v1/insurance/references/alert-thresholds`
+- `/v1/insurance/references/pricing-parameters`
+- `/v1/insurance/evidence/health`
+
+Backbone seed script (dry-run by default):
+- Dry-run: `npx tsx src/seeds/moroccoInsuranceBackbone.ts --dry-run`
+- Write: `npx tsx src/seeds/moroccoInsuranceBackbone.ts --write`
+
+Important:
+- Wakama is not an insurer and does not issue policies or indemnify.
+- Insurer remains the decision maker on eligibility, pricing, issuance, and indemnification.
+- Do not create real Morocco farmers before applying DB migration/schema changes and validating routes.

@@ -139,3 +139,52 @@ Use local/staging only:
 
 ## Next Phase Recommendation
 - Phase 27B should add mission assignment policy enforcement, insured workflow statuses, pricing/claims settings versioning, stronger audit logging writes, and role-aware field-agent access policies.
+
+---
+
+## Addendum - Phase 27A.2 (2026-05-29)
+
+### Additive Scope
+
+- Added Morocco insurance data backbone schema (geography, crop/season, agro-climatic, risk, RAX catalogs, claims catalogs, pricing/tax parameter sets, weather seed readiness, agent profile, evidence/IPFS/Solana anchor foundation).
+- Added new read-only reference APIs under:
+  - `/v1/morocco/*`
+  - `/v1/insurance/references*`
+- Added evidence service stubs with safe disabled behavior:
+  - Pinata upload status helper
+  - Solana anchoring status helper
+  - Anchor queue preparation helper
+- Added source disclosure helper for transparent data provenance in responses.
+- Added dry-run-first seed script:
+  - `src/seeds/moroccoInsuranceBackbone.ts`
+
+### Data Provenance Labels
+
+- `LIVE`
+- `SEED_DEMO`
+- `EXCEL_IMPORT`
+- `MANUAL_ESTIMATE`
+
+No manual or imported seed data is marked as `OFFICIAL`.
+
+### Env Placeholders Added
+
+In `.env.example`:
+- `PINATA_JWT`
+- `PINATA_GATEWAY_URL`
+- `IPFS_GATEWAY_URL`
+- `SOLANA_WALLET_PRIVATE_KEY`
+- `SOLANA_CLUSTER`
+- `SOLANA_RPC_URL`
+- `ANCHORING_ENABLED`
+- `PINATA_UPLOAD_ENABLED`
+
+### Controlled Migration Warning
+
+Schema changed in Phase 27A.2 and requires controlled local/staging migration before production usage.
+
+Not executed in this phase:
+- `prisma migrate dev`
+- `prisma migrate deploy`
+- `prisma db push`
+- any DB reset

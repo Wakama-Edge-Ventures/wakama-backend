@@ -62,6 +62,9 @@ model User {
   institutionUsers InstitutionUser[]
   assignedInsuranceMissions InsuranceMission[] @relation("InsuranceMissionAssignedAgent")
   insuranceFieldAudits      InsuranceFieldAudit[] @relation("InsuranceFieldAuditAgent")
+  agentProfile              AgentProfile?
+  uploadedEvidenceFiles     EvidenceFile[] @relation("EvidenceFileUploadedBy")
+  createdEvidenceBundles    EvidenceBundle[] @relation("EvidenceBundleCreatedBy")
 }
 
 model Farmer {
@@ -107,6 +110,7 @@ model Farmer {
   creditRequests  CreditRequest[]
   creditDecisions CreditDecision[]
   insuranceApplications InsuranceApplication[]
+  insuranceRaxEvaluations InsuranceRaxEvaluation[]
 
   // Scoring fields
   experienceAnnees  String?
@@ -191,6 +195,7 @@ model Parcelle {
   ndviHistory NdviHistory[]
   activities  Activity[]
   insuranceApplications InsuranceApplication[]
+  insuranceRaxEvaluations InsuranceRaxEvaluation[]
 }
 
 model CreditScore {
@@ -529,6 +534,8 @@ model NdviHistory {
   capturedAt   DateTime
   source       String   @default("LIVE")
   provider     String   @default("COPERNICUS")
+  dataProvider String   @default("COPERNICUS")
+  confidence   String?
   rawJson      String?
   createdAt    DateTime @default(now())
 
@@ -543,28 +550,83 @@ model NdviHistory {
 model MoroccoProvince {
   id        String   @id @default(cuid())
   name      String   @unique
+  nameFr    String?
+  nameAr    String?
+  code      String?  @unique
+  country   String   @default("MA")
   region    String?
+  regionId  String?
   source    String?
+  confidence String? @default("MEDIUM")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  communes MoroccoCommune[]
+  regionRef MoroccoRegion?  @relation(fields: [regionId], references: [id])
+  communes  MoroccoCommune[]
+  cities    MoroccoCity[]
+
+  @@index([regionId])
 }
 
 model MoroccoCommune {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   name       String
-  provinceId String
+  nameFr     String?
+  nameAr     String?
+  country    String    @default("MA")
+  code       String?
+  provinceId String?
+  regionCode String?
   lat        Float?
   lng        Float?
   source     String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  confidence String?   @default("MEDIUM")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  province MoroccoProvince @relation(fields: [provinceId], references: [id])
+  province MoroccoProvince? @relation(fields: [provinceId], references: [id])
+  cities   MoroccoCity[]
 
   @@unique([provinceId, name])
   @@index([provinceId])
+  @@index([regionCode])
+}
+
+model MoroccoCity {
+  id         String    @id @default(cuid())
+  country    String    @default("MA")
+  nameFr     String
+  nameAr     String?
+  provinceId String?
+  communeId  String?
+  lat        Float?
+  lng        Float?
+  population Int?
+  source     String    @default("MANUAL_ESTIMATE")
+  confidence String    @default("MEDIUM")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  province MoroccoProvince? @relation(fields: [provinceId], references: [id])
+  commune  MoroccoCommune?  @relation(fields: [communeId], references: [id])
+
+  @@unique([country, nameFr, provinceId, communeId])
+  @@index([provinceId])
+  @@index([communeId])
+}
+
+model MoroccoRegion {
+  id         String   @id @default(cuid())
+  country    String   @default("MA")
+  code       String   @unique
+  nameFr     String
+  nameAr     String?
+  source     String   @default("MANUAL_ESTIMATE")
+  confidence String   @default("MEDIUM")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  provinces MoroccoProvince[]
 }
 
 model MoroccoDam {
@@ -579,24 +641,42 @@ model MoroccoDam {
   capacityMm3 Float?
   riverName   String?
   operator    String?
+  regionCode  String?
+  provinceCode String?
+  communeCode String?
+  riskNotes   String?
+  source      String?
   sourceUrl   String?
   sourceType  String   @default("MANUAL")
   confidence  String   @default("MEDIUM")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([regionCode])
+  @@index([provinceCode])
+  @@index([communeCode])
 }
 
 model MoroccoRiverSegment {
   id              String   @id @default(cuid())
   name            String   @unique
   basin           String?
+  regionCode      String?
+  provinceCode    String?
+  communeCode     String?
+  riskNotes       String?
   geometryGeojson String?
   lat             Float?
   lng             Float?
+  source          String?
   sourceType      String   @default("MANUAL")
   confidence      String   @default("MEDIUM")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([regionCode])
+  @@index([provinceCode])
+  @@index([communeCode])
 }
 
 model MoroccoFloodRiskZone {
@@ -605,13 +685,22 @@ model MoroccoFloodRiskZone {
   province        String?
   commune         String?
   basin           String?
+  regionCode      String?
+  provinceCode    String?
+  communeCode     String?
+  riskNotes       String?
   geometryGeojson String?
   riskLevel       String   @default("MEDIUM")
   reason          String?
+  source          String?
   sourceType      String   @default("MANUAL")
   confidence      String   @default("MEDIUM")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([regionCode])
+  @@index([provinceCode])
+  @@index([communeCode])
 }
 
 model InsuranceCropCategory {
@@ -621,8 +710,21 @@ model InsuranceCropCategory {
   labelFr          String
   labelAr          String?
   family           String?
+  cropFamily       String?
+  riskProfileJson  String?
+  ndviThresholdLow Float?
+  ndviThresholdCritical Float?
+  droughtSensitivity String?
+  floodSensitivity String?
+  frostSensitivity String?
+  pestSensitivity  String?
+  hailSensitivity  String?
+  defaultRaxGravity Int?
+  defaultRaxFrequency Int?
   defaultRiskLevel String   @default("MEDIUM")
   active           Boolean  @default(true)
+  source           String   @default("MANUAL_ESTIMATE")
+  confidence       String   @default("MEDIUM")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -671,6 +773,7 @@ model InsuranceApplication {
   insurerInstitution Institution? @relation(fields: [insurerInstitutionId], references: [id])
   missions           InsuranceMission[]
   fieldAudits        InsuranceFieldAudit[]
+  raxEvaluations     InsuranceRaxEvaluation[]
 
   @@index([farmerId])
   @@index([parcelleId])
@@ -732,4 +835,410 @@ model InsuranceFieldAudit {
   @@index([missionId])
   @@index([agentUserId])
   @@index([hashStatus])
+}
+
+model MoroccoCropSeason {
+  id                String   @id @default(cuid())
+  country           String   @default("MA")
+  cropCode          String
+  cropLabelFr       String
+  regionCode        String?
+  agroZoneCode      String?
+  sowingStartMonth  Int?
+  sowingEndMonth    Int?
+  harvestStartMonth Int?
+  harvestEndMonth   Int?
+  irrigationWindowJson String?
+  riskWindowJson    String?
+  source            String   @default("MANUAL_ESTIMATE")
+  confidence        String   @default("LOW")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([country, cropCode])
+  @@index([regionCode])
+  @@index([agroZoneCode])
+}
+
+model MoroccoAgroClimaticZone {
+  id                String   @id @default(cuid())
+  country           String   @default("MA")
+  code              String   @unique
+  nameFr            String
+  nameAr            String?
+  description       String?
+  regionCode        String?
+  rainfallBand      String?
+  dominantCropsJson String?
+  source            String   @default("MANUAL_ESTIMATE")
+  confidence        String   @default("LOW")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([regionCode])
+}
+
+model MoroccoRiskZone {
+  id               String   @id @default(cuid())
+  country          String   @default("MA")
+  code             String   @unique
+  nameFr           String
+  riskType         String
+  regionCode       String?
+  provinceCode     String?
+  communeCode      String?
+  lat              Float?
+  lng              Float?
+  radiusKm         Float?
+  geometryJson     String?
+  severityDefault  Int?
+  frequencyDefault Int?
+  source           String   @default("MANUAL_ESTIMATE")
+  confidence       String   @default("LOW")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([riskType])
+  @@index([regionCode, provinceCode, communeCode])
+}
+
+model ThreatCatalog {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  country          String   @default("MA")
+  category         String
+  labelFr          String
+  labelAr          String?
+  description      String?
+  defaultGravity   Int?
+  defaultFrequency Int?
+  isActive         Boolean  @default(true)
+  insurerId        String?
+  source           String   @default("SEED_DEMO")
+  confidence       String   @default("MEDIUM")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([country, isActive])
+}
+
+model VulnerabilityCatalog {
+  id                    String   @id @default(cuid())
+  code                  String   @unique
+  country               String   @default("MA")
+  category              String
+  labelFr               String
+  labelAr               String?
+  description           String?
+  defaultWeight         Float?
+  defaultDetectionScore Int?
+  isActive              Boolean  @default(true)
+  insurerId             String?
+  source                String   @default("SEED_DEMO")
+  confidence            String   @default("MEDIUM")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([country, isActive])
+}
+
+model RiskMatrixScenario {
+  id                String   @id @default(cuid())
+  country           String   @default("MA")
+  threatCode        String
+  vulnerabilityCode String
+  cropCode          String?
+  regionCode        String?
+  baseGravity       Int
+  baseFrequency     Int
+  baseDetection     Int
+  notes             String?
+  source            String   @default("SEED_DEMO")
+  confidence        String   @default("MEDIUM")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([country, isActive])
+  @@index([threatCode, vulnerabilityCode])
+}
+
+model RaxParameterSet {
+  id                 String   @id @default(cuid())
+  country            String   @default("MA")
+  name               String
+  version            String
+  isActive           Boolean  @default(false)
+  gravityScaleJson   String
+  frequencyScaleJson String
+  detectionScaleJson String
+  tierRulesJson      String
+  formula            String   @default("RAX_BRUT=G*F*D;WRS=(RAX_BRUT/25)*100")
+  source             String   @default("SEED_DEMO")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([country, name, version])
+  @@index([country, isActive])
+}
+
+model InsuranceRaxEvaluation {
+  id               String   @id @default(cuid())
+  applicationId    String?
+  farmerId         String?
+  parcelleId       String?
+  country          String   @default("MA")
+  gravityScore     Float
+  frequencyScore   Float
+  detectionScore   Float
+  raxBrut          Float
+  wrs              Float
+  riskTier         String
+  explanationJson  String?
+  source           String   @default("SEED_DEMO")
+  algorithmVersion String   @default("RAX_V1")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  application InsuranceApplication? @relation(fields: [applicationId], references: [id])
+  farmer      Farmer?               @relation(fields: [farmerId], references: [id])
+  parcelle    Parcelle?             @relation(fields: [parcelleId], references: [id])
+
+  @@index([applicationId])
+  @@index([farmerId])
+  @@index([parcelleId])
+  @@index([country, riskTier])
+}
+
+model InsuranceClaimCause {
+  id                   String   @id @default(cuid())
+  country              String   @default("MA")
+  code                 String   @unique
+  labelFr              String
+  labelAr              String?
+  category             String
+  parametricEligible   Boolean  @default(false)
+  defaultSeverity      Int?
+  requiredEvidenceJson String?
+  source               String   @default("SEED_DEMO")
+  confidence           String   @default("MEDIUM")
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([country, active])
+}
+
+model InsuranceClaimStatusCatalog {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  labelFr     String
+  description String?
+  sortOrder   Int
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+model InsuranceAlertThreshold {
+  id           String   @id @default(cuid())
+  country      String   @default("MA")
+  code         String   @unique
+  labelFr      String
+  metric       String
+  operator     String
+  value        Float?
+  valueMin     Float?
+  valueMax     Float?
+  durationDays Int?
+  cropCode     String?
+  regionCode   String?
+  severity     String
+  source       String   @default("SEED_DEMO")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([country, active, severity])
+  @@index([metric, operator])
+}
+
+model InsurancePricingParameterSet {
+  id                String   @id @default(cuid())
+  country           String   @default("MA")
+  name              String
+  version           String
+  isActive          Boolean  @default(false)
+  cropCode          String?
+  regionCode        String?
+  baseRatePercent   Float?
+  minPremium        Float?
+  maxCoverageRatio  Float?
+  deductibleRulesJson String?
+  wrsLoadingRulesJson String?
+  notes             String?
+  source            String   @default("SEED_DEMO")
+  confidence        String   @default("LOW")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([country, name, version])
+  @@index([country, isActive])
+}
+
+model InsuranceTaxFeeParameterSet {
+  id                      String   @id @default(cuid())
+  country                 String   @default("MA")
+  name                    String
+  version                 String
+  isActive                Boolean  @default(false)
+  taxRatePercent          Float?
+  wakamaServiceFeePercent Float?
+  insurerFeePercent       Float?
+  brokerFeePercent        Float?
+  notes                   String?
+  source                  String   @default("SEED_DEMO")
+  confidence              String   @default("LOW")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@unique([country, name, version])
+  @@index([country, isActive])
+}
+
+model WeatherHistorySeed {
+  id            String   @id @default(cuid())
+  regionCode    String
+  lat           Float
+  lng           Float
+  recordedDate  DateTime
+  tempMax       Float?
+  tempMin       Float?
+  precipitation Float?
+  weatherCode   String?
+  source        String   @default("SEED_DEMO")
+  dataProvider  String   @default("OPEN_METEO_ARCHIVE")
+  confidence    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([regionCode, recordedDate])
+  @@index([lat, lng, recordedDate])
+}
+
+model AgentProfile {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  certificationLevel     String   @default("LEVEL_1")
+  certifiedAt            DateTime?
+  isActive               Boolean  @default(true)
+  currentLat             Float?
+  currentLng             Float?
+  lastLocationAt         DateTime?
+  zoneProvinces          Json?
+  totalMissionsCompleted Int      @default(0)
+  avgCompletionTimeMin   Float?
+  deviceModel            String?
+  deviceOs               String?
+  appVersion             String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([isActive])
+}
+
+model EvidenceFile {
+  id               String   @id @default(cuid())
+  entityType       String
+  entityId         String
+  fileKind         String
+  originalFilename String?
+  mimeType         String?
+  sizeBytes        Int?
+  sha256Hash       String
+  storageProvider  String
+  storageUrl       String?
+  ipfsCid          String?
+  pinataId         String?
+  encrypted        Boolean  @default(false)
+  source           String   @default("SEED_DEMO")
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  uploadedByUser User? @relation("EvidenceFileUploadedBy", fields: [uploadedByUserId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([uploadedByUserId])
+  @@index([sha256Hash])
+  @@index([ipfsCid])
+}
+
+model EvidenceBundle {
+  id              String   @id @default(cuid())
+  entityType      String
+  entityId        String
+  bundleHash      String
+  payloadJson     String
+  source          String   @default("SEED_DEMO")
+  status          String
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdByUser User?             @relation("EvidenceBundleCreatedBy", fields: [createdByUserId], references: [id])
+  anchors       BlockchainAnchor[]
+  anchorQueue   AnchorQueue[]
+
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([bundleHash])
+}
+
+model BlockchainAnchor {
+  id           String   @id @default(cuid())
+  bundleId     String?
+  entityType   String
+  entityId     String
+  chain        String   @default("SOLANA")
+  cluster      String   @default("devnet")
+  payloadHash  String
+  txSignature  String?
+  explorerUrl  String?
+  status       String
+  attemptCount Int      @default(0)
+  lastError    String?
+  anchoredAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bundle EvidenceBundle? @relation(fields: [bundleId], references: [id])
+
+  @@index([bundleId])
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
+model AnchorQueue {
+  id           String   @id @default(cuid())
+  bundleId     String?
+  entityType   String
+  entityId     String
+  payloadHash  String
+  status       String
+  attemptCount Int      @default(0)
+  nextRetryAt  DateTime?
+  lastError    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bundle EvidenceBundle? @relation(fields: [bundleId], references: [id])
+
+  @@index([bundleId])
+  @@index([status, nextRetryAt])
+  @@index([entityType, entityId])
 }
