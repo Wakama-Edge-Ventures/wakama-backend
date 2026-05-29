@@ -43,7 +43,8 @@ export async function optionalAuth(request: FastifyRequest, reply: FastifyReply)
   try {
     await request.jwtVerify()
   } catch {
-    return unauthorized(reply)
+    request.authContext = null
+    return
   }
 }
 

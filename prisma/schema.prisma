@@ -16,6 +16,7 @@ enum Role {
   MFI_AGENT
   SUPERADMIN
   INSTITUTION_ADMIN
+  FIELD_AGENT
 }
 
 enum KycStatus {
@@ -59,6 +60,8 @@ model User {
   mfiAgent         MFIAgent?
   apiKeys          ApiKey[]
   institutionUsers InstitutionUser[]
+  assignedInsuranceMissions InsuranceMission[] @relation("InsuranceMissionAssignedAgent")
+  insuranceFieldAudits      InsuranceFieldAudit[] @relation("InsuranceFieldAuditAgent")
 }
 
 model Farmer {
@@ -67,11 +70,21 @@ model Farmer {
   firstName     String
   lastName      String
   phone         String
+  country       String    @default("CI")
+  cin           String?
   region        String
+  province      String?
+  commune       String?
   village       String
   lat           Float
   lng           Float
   surface       Float
+  cndpConsent   Boolean   @default(false)
+  cndpConsentAt DateTime?
+  cndpConsentVersion String?
+  dateNaissance DateTime?
+  sexe          String?
+  moroccoPhoneNormalized String?
   onboardedAt   DateTime  @default(now())
   kycStatus     KycStatus @default(PENDING)
   photoUrl         String?
@@ -88,10 +101,12 @@ model Farmer {
   creditScore CreditScore?
   iotNodes    IoTNode[]
   weatherHistory WeatherHistory[]
+  ndviHistory NdviHistory[]
   activities  Activity[]
   messages    Message[]
   creditRequests  CreditRequest[]
   creditDecisions CreditDecision[]
+  insuranceApplications InsuranceApplication[]
 
   // Scoring fields
   experienceAnnees  String?
@@ -119,7 +134,11 @@ model Cooperative {
   id           String   @id @default(cuid())
   name         String
   rccm         String   @unique
+  country      String   @default("CI")
   region       String
+  province     String?
+  commune      String?
+  iceOrRc      String?
   filiere      String
   surface      Float
   foundedAt    DateTime
@@ -145,6 +164,15 @@ model Parcelle {
   farmerId      String
   name          String
   culture       String
+  country       String   @default("CI")
+  province      String?
+  commune       String?
+  regionCode    String?
+  elevationM    Float?
+  slopePct      Float?
+  hydroRiskLevel String?
+  hydroRiskScore Float?
+  hydroRiskJson  String?
   superficie    Float
   lat           Float
   lng           Float
@@ -160,7 +188,9 @@ model Parcelle {
   alerts      Alert[]
   iotReadings IoTReading[]
   weatherHistory WeatherHistory[]
+  ndviHistory NdviHistory[]
   activities  Activity[]
+  insuranceApplications InsuranceApplication[]
 }
 
 model CreditScore {
@@ -307,6 +337,9 @@ model WeatherHistory {
   lng         Float
   region      String?
   country     String   @default("CI")
+  source      String   @default("FORECAST")
+  provider    String?
+  regionCode  String?
   recordedAt  DateTime @default(now())
 
   // Temperature
@@ -415,6 +448,7 @@ model Institution {
   decisions     CreditDecision[]
   scoringConfig InstitutionScoringConfig?
   cooperatives  Cooperative[]
+  insuranceApplications InsuranceApplication[]
 }
 
 model InstitutionUser {
@@ -480,4 +514,222 @@ model Message {
 
   farmer      Farmer      @relation(fields: [farmerId], references: [id])
   cooperative Cooperative @relation(fields: [cooperativeId], references: [id])
+}
+
+model NdviHistory {
+  id           String   @id @default(cuid())
+  farmerId     String?
+  parcelleId   String?
+  regionCode   String?
+  lat          Float
+  lng          Float
+  ndviValue    Float
+  capturedWeek Int
+  capturedYear Int
+  capturedAt   DateTime
+  source       String   @default("LIVE")
+  provider     String   @default("COPERNICUS")
+  rawJson      String?
+  createdAt    DateTime @default(now())
+
+  farmer   Farmer?   @relation(fields: [farmerId], references: [id])
+  parcelle Parcelle? @relation(fields: [parcelleId], references: [id])
+
+  @@index([parcelleId])
+  @@index([capturedYear, capturedWeek])
+  @@index([regionCode])
+}
+
+model MoroccoProvince {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  region    String?
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  communes MoroccoCommune[]
+}
+
+model MoroccoCommune {
+  id         String   @id @default(cuid())
+  name       String
+  provinceId String
+  lat        Float?
+  lng        Float?
+  source     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  province MoroccoProvince @relation(fields: [provinceId], references: [id])
+
+  @@unique([provinceId, name])
+  @@index([provinceId])
+}
+
+model MoroccoDam {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  arabicName  String?
+  basin       String?
+  province    String?
+  commune     String?
+  lat         Float
+  lng         Float
+  capacityMm3 Float?
+  riverName   String?
+  operator    String?
+  sourceUrl   String?
+  sourceType  String   @default("MANUAL")
+  confidence  String   @default("MEDIUM")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MoroccoRiverSegment {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  basin           String?
+  geometryGeojson String?
+  lat             Float?
+  lng             Float?
+  sourceType      String   @default("MANUAL")
+  confidence      String   @default("MEDIUM")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model MoroccoFloodRiskZone {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  province        String?
+  commune         String?
+  basin           String?
+  geometryGeojson String?
+  riskLevel       String   @default("MEDIUM")
+  reason          String?
+  sourceType      String   @default("MANUAL")
+  confidence      String   @default("MEDIUM")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model InsuranceCropCategory {
+  id               String   @id @default(cuid())
+  country          String   @default("MA")
+  code             String
+  labelFr          String
+  labelAr          String?
+  family           String?
+  defaultRiskLevel String   @default("MEDIUM")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([country, code])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  action      String
+  actorUserId String?
+  oldValueJson String?
+  newValueJson String?
+  ipAddress   String?
+  source      String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
+}
+
+model InsuranceApplication {
+  id                   String   @id @default(cuid())
+  farmerId             String
+  parcelleId           String?
+  insurerInstitutionId String?
+  country              String   @default("MA")
+  province             String?
+  commune              String?
+  cropType             String
+  cropVariety          String?
+  declaredSurfaceHa    Float
+  declaredLat          Float?
+  declaredLng          Float?
+  cndpConsentChecked   Boolean  @default(false)
+  cndpConsentTimestamp DateTime?
+  status               String   @default("DRAFT")
+  source               String   @default("LIVE")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  farmer             Farmer       @relation(fields: [farmerId], references: [id])
+  parcelle           Parcelle?    @relation(fields: [parcelleId], references: [id])
+  insurerInstitution Institution? @relation(fields: [insurerInstitutionId], references: [id])
+  missions           InsuranceMission[]
+  fieldAudits        InsuranceFieldAudit[]
+
+  @@index([farmerId])
+  @@index([parcelleId])
+  @@index([insurerInstitutionId])
+  @@index([status])
+}
+
+model InsuranceMission {
+  id                  String   @id @default(cuid())
+  applicationId       String
+  assignedAgentUserId String?
+  status              String   @default("PLANNED")
+  requiredKyc         Boolean  @default(true)
+  requiredGpsPolygon  Boolean  @default(true)
+  surfaceTolerancePct Float    @default(5)
+  auditEquipment      Boolean  @default(false)
+  auditBuildings      Boolean  @default(false)
+  auditStocks         Boolean  @default(false)
+  auditLivestock      Boolean  @default(false)
+  requirePhotos       Boolean  @default(true)
+  requireSignature    Boolean  @default(true)
+  source              String   @default("LIVE")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  application       InsuranceApplication @relation(fields: [applicationId], references: [id])
+  assignedAgentUser User?                @relation("InsuranceMissionAssignedAgent", fields: [assignedAgentUserId], references: [id])
+  fieldAudits       InsuranceFieldAudit[]
+
+  @@index([applicationId])
+  @@index([assignedAgentUserId])
+  @@index([status])
+}
+
+model InsuranceFieldAudit {
+  id                    String   @id @default(cuid())
+  applicationId         String
+  missionId             String?
+  agentUserId           String?
+  measuredSurfaceHa     Float?
+  measuredPolygonGeojson String?
+  gpsAccuracyM          Float?
+  photosJson            String?
+  assetsJson            String?
+  agentComment          String?
+  localPayloadHash      String?
+  serverPayloadHash     String?
+  hashStatus            String   @default("PENDING")
+  source                String   @default("LIVE")
+  syncedAt              DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  application InsuranceApplication @relation(fields: [applicationId], references: [id])
+  mission     InsuranceMission?    @relation(fields: [missionId], references: [id])
+  agentUser   User?                @relation("InsuranceFieldAuditAgent", fields: [agentUserId], references: [id])
+
+  @@index([applicationId])
+  @@index([missionId])
+  @@index([agentUserId])
+  @@index([hashStatus])
 }

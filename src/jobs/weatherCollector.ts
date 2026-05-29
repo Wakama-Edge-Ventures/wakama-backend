@@ -1,14 +1,43 @@
 import prisma from '../lib/prisma.js'
 
-async function fetchWeatherForLocation(lat: number, lng: number) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,cloud_cover,shortwave_radiation,uv_index,evapotranspiration,vapour_pressure_deficit,soil_temperature_0cm,soil_temperature_6cm,soil_temperature_18cm,soil_temperature_54cm,soil_moisture_0_to_1cm,soil_moisture_1_to_3cm,soil_moisture_3_to_9cm,soil_moisture_9_to_27cm&timezone=Africa%2FAbidjan&forecast_days=1`
+const DEFAULT_COUNTRY = (process.env.DEFAULT_COUNTRY ?? 'CI').toUpperCase()
+const MOROCCO_TIMEZONE = process.env.MOROCCO_TIMEZONE ?? 'Africa/Casablanca'
+const CI_TIMEZONE = process.env.CI_TIMEZONE ?? 'Africa/Abidjan'
+
+export function getTimezoneForCountry(country?: string | null): string {
+  const normalized = (country ?? DEFAULT_COUNTRY).toUpperCase()
+  if (normalized === 'MA') return MOROCCO_TIMEZONE
+  return CI_TIMEZONE
+}
+
+function getHourPrefixForTimezone(timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+
+  const values: Record<string, string> = {}
+  for (const part of parts) {
+    if (part.type !== 'literal') values[part.type] = part.value
+  }
+
+  return `${values.year}-${values.month}-${values.day}T${values.hour}`
+}
+
+async function fetchWeatherForLocation(lat: number, lng: number, timezone: string) {
+  const tz = encodeURIComponent(timezone)
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,cloud_cover,shortwave_radiation,uv_index,evapotranspiration,vapour_pressure_deficit,soil_temperature_0cm,soil_temperature_6cm,soil_temperature_18cm,soil_temperature_54cm,soil_moisture_0_to_1cm,soil_moisture_1_to_3cm,soil_moisture_3_to_9cm,soil_moisture_9_to_27cm&timezone=${tz}&forecast_days=1`
 
   const res = await fetch(url)
   if (!res.ok) throw new Error('Weather fetch failed')
   const data = await res.json()
 
-  const nowISO = new Date().toISOString().slice(0, 13)
-  const idx = data.hourly.time.findIndex((t: string) => t.startsWith(nowISO))
+  const hourPrefix = getHourPrefixForTimezone(timezone)
+  const idx = data.hourly.time.findIndex((t: string) => t.startsWith(hourPrefix))
   const i = idx >= 0 ? idx : 0
 
   return {
@@ -40,7 +69,7 @@ export async function collectWeatherForAllParcelles() {
   console.log('[WeatherCollector] Starting collection...')
 
   const parcelles = await prisma.parcelle.findMany({
-    select: { id: true, lat: true, lng: true, farmerId: true },
+    select: { id: true, lat: true, lng: true, farmerId: true, country: true, regionCode: true },
   })
 
   let success = 0
@@ -50,7 +79,9 @@ export async function collectWeatherForAllParcelles() {
     try {
       if (!parcelle.lat || !parcelle.lng) continue
 
-      const weather = await fetchWeatherForLocation(parcelle.lat, parcelle.lng)
+      const country = (parcelle.country ?? DEFAULT_COUNTRY).toUpperCase()
+      const timezone = getTimezoneForCountry(country)
+      const weather = await fetchWeatherForLocation(parcelle.lat, parcelle.lng, timezone)
 
       await prisma.weatherHistory.create({
         data: {
@@ -58,6 +89,10 @@ export async function collectWeatherForAllParcelles() {
           farmerId: parcelle.farmerId,
           lat: parcelle.lat,
           lng: parcelle.lng,
+          country,
+          regionCode: parcelle.regionCode ?? null,
+          source: 'FORECAST',
+          provider: 'OPEN_METEO',
           ...weather,
         },
       })
@@ -75,19 +110,26 @@ export async function collectWeatherForAllParcelles() {
 
 export async function collectWeatherForAllCoops() {
   const coops = await prisma.cooperative.findMany({
-    select: { id: true, lat: true, lng: true, region: true },
+    select: { id: true, lat: true, lng: true, region: true, country: true },
   })
 
   for (const coop of coops) {
     try {
       if (!coop.lat || !coop.lng) continue
-      const weather = await fetchWeatherForLocation(coop.lat, coop.lng)
+
+      const country = (coop.country ?? DEFAULT_COUNTRY).toUpperCase()
+      const timezone = getTimezoneForCountry(country)
+      const weather = await fetchWeatherForLocation(coop.lat, coop.lng, timezone)
+
       await prisma.weatherHistory.create({
         data: {
           coopId: coop.id,
           lat: coop.lat,
           lng: coop.lng,
           region: coop.region ?? '',
+          country,
+          source: 'FORECAST',
+          provider: 'OPEN_METEO',
           ...weather,
         },
       })
