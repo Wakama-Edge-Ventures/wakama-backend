@@ -10,6 +10,7 @@ import {
   validateCountryMorocco,
   validateCropCode,
   validateDateRange,
+  validateFarmerDcaPayload,
   validateFieldAuditSyncPayload,
   validateLatLng,
   validateMissionPayload,
@@ -38,6 +39,8 @@ import {
 
 const READ_ROLES = new Set(['SUPERADMIN', 'INSTITUTION_ADMIN', 'MFI_AGENT', 'FIELD_AGENT'])
 const WRITE_ROLES = new Set(['SUPERADMIN', 'INSTITUTION_ADMIN', 'MFI_AGENT', 'FIELD_AGENT'])
+const APPLICATION_READ_ROLES = new Set([...READ_ROLES, 'FARMER'])
+const APPLICATION_CREATE_ROLES = new Set([...WRITE_ROLES, 'FARMER'])
 
 async function requireInsuranceReadAccess(request: any, reply: any) {
   const context = await getUserContext(request)
@@ -74,6 +77,55 @@ async function requireInsuranceWriteAccess(request: any, reply: any) {
   return context
 }
 
+async function requireInsuranceApplicationReadAccess(request: any, reply: any) {
+  const context = await getUserContext(request)
+  if (!context) {
+    reply.status(401).send({ error: 'Unauthorized' })
+    return null
+  }
+
+  if (!APPLICATION_READ_ROLES.has(context.role)) {
+    reply.status(403).send({ error: 'Forbidden' })
+    return null
+  }
+
+  if (context.role === 'FARMER' && !context.farmerId) {
+    reply.status(403).send({ error: 'Farmer account is not linked to a farmer profile' })
+    return null
+  }
+
+  return context
+}
+
+async function requireInsuranceApplicationCreateAccess(request: any, reply: any) {
+  const context = await getUserContext(request)
+  if (!context) {
+    reply.status(401).send({ error: 'Unauthorized' })
+    return null
+  }
+
+  if (!APPLICATION_CREATE_ROLES.has(context.role)) {
+    reply.status(403).send({ error: 'Forbidden' })
+    return null
+  }
+
+  if (context.role === 'FARMER') {
+    if (!context.farmerId) {
+      reply.status(403).send({ error: 'Farmer account is not linked to a farmer profile' })
+      return null
+    }
+
+    return context
+  }
+
+  if (isReadOnlyInstitutionUser(context)) {
+    reply.status(403).send({ error: 'Forbidden' })
+    return null
+  }
+
+  return context
+}
+
 function parseFinite(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) {
@@ -96,16 +148,106 @@ function clampToScore(value: number): number {
   return Number(value.toFixed(3))
 }
 
+function mapFrontendApplicationStatus(status: string): string {
+  if (status === 'DRAFT') return 'DRAFT_SUBMITTED'
+  return status
+}
+
 export default async function insuranceRoutes(fastify: FastifyInstance) {
   fastify.post('/applications', { preHandler: verifyToken }, async (request, reply) => {
-    const context = await requireInsuranceWriteAccess(request, reply)
+    const context = await requireInsuranceApplicationCreateAccess(request, reply)
     if (!context) return
 
     const payload = (request.body ?? {}) as Record<string, unknown>
-    const validation = validateApplicationPayload(payload)
-    if ('error' in validation) return reply.status(400).send({ error: validation.error })
 
     try {
+      if (context.role === 'FARMER') {
+        const validation = validateFarmerDcaPayload(payload)
+        if ('error' in validation) return reply.status(400).send({ error: validation.error })
+
+        const requestedFarmerId = typeof payload.farmerId === 'string' ? payload.farmerId.trim() : null
+        if (requestedFarmerId && requestedFarmerId !== context.farmerId) {
+          return reply.status(403).send({ error: 'Cannot create DCA for another farmer' })
+        }
+
+        const farmerExists = await prisma.farmer.findUnique({
+          where: { id: context.farmerId },
+          select: { id: true },
+        })
+        if (!farmerExists) {
+          return reply.status(403).send({ error: 'Farmer profile not found' })
+        }
+
+        const parcelle = await prisma.parcelle.findUnique({
+          where: { id: validation.parcelleId },
+          select: { id: true, farmerId: true, culture: true },
+        })
+
+        if (!parcelle) {
+          return reply.status(400).send({ error: 'parcelleId not found' })
+        }
+
+        if (parcelle.farmerId !== context.farmerId) {
+          return reply.status(403).send({ error: 'parcelleId does not belong to authenticated farmer' })
+        }
+
+        const result = await createInsuranceApplicationDraft(
+          {
+            country: 'MA',
+            farmerId: context.farmerId,
+            parcelleId: validation.parcelleId,
+            cropCode:
+              typeof payload.cropCode === 'string' && payload.cropCode.trim()
+                ? payload.cropCode.trim().toUpperCase()
+                : parcelle.culture,
+            regionCode: typeof payload.regionCode === 'string' ? payload.regionCode : null,
+            provinceCode: typeof payload.provinceCode === 'string' ? payload.provinceCode : null,
+            communeCode: typeof payload.communeCode === 'string' ? payload.communeCode : null,
+            lat: parseFinite(payload.lat),
+            lng: parseFinite(payload.lng),
+            surfaceHa: parsePositive(payload.surfaceHa),
+            requestedCoverageAmount: parsePositive(payload.requestedCoverageAmount),
+            source: validation.source,
+            consentCndp: validation.consentCndp,
+            preferredLanguage: validation.preferredLanguage,
+            documentsPrepared: validation.documentsPrepared,
+            declaredClaimHistory: validation.declaredClaimHistory,
+          },
+          context.userId
+        )
+        const createdAt = 'createdAt' in result ? result.createdAt : null
+
+        return reply.status(201).send({
+          id: result.id,
+          status: result.status,
+          frontendStatus: mapFrontendApplicationStatus(result.status),
+          farmerId: result.farmerId,
+          parcelleId: result.parcelleId,
+          dcaDeclarationId: result.dcaDeclarationId ?? null,
+          preparedDocumentsCount: result.preparedDocumentsCount ?? 0,
+          declaredClaimEventsCount: result.declaredClaimEventsCount ?? 0,
+          source: result.source,
+          sourceLabel: result.source,
+          createdAt,
+          message: 'DCA application created as initial draft. No mission, policy, claim, pricing, or RAX created automatically.',
+          sideEffects: {
+            missionCreated: false,
+            policyCreated: false,
+            claimCreated: false,
+            raxCalculated: false,
+            pricingCalculated: false,
+            blockchainAnchored: false,
+          },
+          application: result,
+          sourceDisclosure:
+            result.sourceDisclosure ??
+            buildSourceDisclosure({ source: 'LIVE', provider: 'INSURANCE_WORKFLOW', confidence: 'MEDIUM' }),
+        })
+      }
+
+      const validation = validateApplicationPayload(payload)
+      if ('error' in validation) return reply.status(400).send({ error: validation.error })
+
       const result = await createInsuranceApplicationDraft(
         {
           country: validation.country,
@@ -123,9 +265,22 @@ export default async function insuranceRoutes(fastify: FastifyInstance) {
         },
         context.userId
       )
+      const createdAt = 'createdAt' in result ? result.createdAt : null
 
       const statusCode = result.persisted ? 201 : 202
       return reply.status(statusCode).send({
+        id: result.id,
+        status: result.status,
+        frontendStatus: mapFrontendApplicationStatus(result.status),
+        farmerId: result.farmerId,
+        parcelleId: result.parcelleId,
+        dcaDeclarationId: result.dcaDeclarationId ?? null,
+        preparedDocumentsCount: result.preparedDocumentsCount ?? 0,
+        declaredClaimEventsCount: result.declaredClaimEventsCount ?? 0,
+        source: result.source,
+        sourceLabel: result.source,
+        createdAt,
+        message: 'Insurance application draft created.',
         application: result,
         sourceDisclosure:
           result.sourceDisclosure ??
@@ -138,7 +293,7 @@ export default async function insuranceRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/applications', { preHandler: verifyToken }, async (request, reply) => {
-    const context = await requireInsuranceReadAccess(request, reply)
+    const context = await requireInsuranceApplicationReadAccess(request, reply)
     if (!context) return
 
     const query = request.query as { page?: string; pageSize?: string }
@@ -148,10 +303,15 @@ export default async function insuranceRoutes(fastify: FastifyInstance) {
     const rows = await listInsuranceApplications({
       page: Number.isFinite(page) ? page : 1,
       pageSize: Number.isFinite(pageSize) ? pageSize : 20,
+      farmerId: context.role === 'FARMER' ? context.farmerId : null,
     })
 
     return {
       ...rows,
+      data: rows.data.map((row) => ({
+        ...row,
+        frontendStatus: mapFrontendApplicationStatus(row.status),
+      })),
       sourceDisclosure: buildSourceDisclosure({
         source: 'LIVE',
         provider: 'INSURANCE_WORKFLOW',
@@ -161,11 +321,13 @@ export default async function insuranceRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/applications/:id', { preHandler: verifyToken }, async (request, reply) => {
-    const context = await requireInsuranceReadAccess(request, reply)
+    const context = await requireInsuranceApplicationReadAccess(request, reply)
     if (!context) return
 
     const { id } = request.params as { id: string }
-    const application = await getInsuranceApplicationById(id)
+    const application = await getInsuranceApplicationById(id, {
+      farmerId: context.role === 'FARMER' ? context.farmerId : null,
+    })
     if (!application) return reply.status(404).send({ error: 'Insurance application not found' })
 
     let hydroRisk = null
@@ -178,6 +340,16 @@ export default async function insuranceRoutes(fastify: FastifyInstance) {
 
     return {
       application,
+      frontendStatus: mapFrontendApplicationStatus(application.status),
+      dcaDeclaration: application.dcaDeclaration
+        ? (() => {
+            const { preparedDocuments, declaredClaimEvents, ...declaration } = application.dcaDeclaration
+            return declaration
+          })()
+        : null,
+      preparedDocuments: application.dcaDeclaration?.preparedDocuments ?? [],
+      declaredClaimEvents: application.dcaDeclaration?.declaredClaimEvents ?? [],
+      deprecatedLegacyAuditDcaFallback: application.deprecatedLegacyAuditDcaFallback ?? null,
       farmer: application.farmer ?? null,
       parcelle: application.parcelle ?? null,
       latestRax: application.raxEvaluations[0] ?? null,

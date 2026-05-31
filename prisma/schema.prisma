@@ -111,6 +111,7 @@ model Farmer {
   creditDecisions CreditDecision[]
   insuranceApplications InsuranceApplication[]
   insuranceRaxEvaluations InsuranceRaxEvaluation[]
+  insuranceDcaDeclarations InsuranceDcaDeclaration[]
 
   // Scoring fields
   experienceAnnees  String?
@@ -196,6 +197,7 @@ model Parcelle {
   activities  Activity[]
   insuranceApplications InsuranceApplication[]
   insuranceRaxEvaluations InsuranceRaxEvaluation[]
+  insuranceDcaDeclarations InsuranceDcaDeclaration[]
 }
 
 model CreditScore {
@@ -774,11 +776,71 @@ model InsuranceApplication {
   missions           InsuranceMission[]
   fieldAudits        InsuranceFieldAudit[]
   raxEvaluations     InsuranceRaxEvaluation[]
+  dcaDeclaration     InsuranceDcaDeclaration?
 
   @@index([farmerId])
   @@index([parcelleId])
   @@index([insurerInstitutionId])
   @@index([status])
+}
+
+model InsuranceDcaDeclaration {
+  id               String   @id @default(cuid())
+  applicationId    String   @unique
+  farmerId         String
+  parcelleId       String?
+  consentCndp      Boolean
+  preferredLanguage String?
+  periodYears      Int
+  noClaimsDeclared Boolean
+  sourceLabel      String   @default("MANUAL_ESTIMATE")
+  identitySnapshot Json?
+  parcelleSnapshot Json?
+  rawDeclaration   Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  application      InsuranceApplication         @relation(fields: [applicationId], references: [id])
+  farmer           Farmer                       @relation(fields: [farmerId], references: [id])
+  parcelle         Parcelle?                    @relation(fields: [parcelleId], references: [id])
+  preparedDocuments InsuranceDcaPreparedDocument[]
+  claimEvents      InsuranceDcaClaimEvent[]
+
+  @@index([farmerId])
+  @@index([parcelleId])
+}
+
+model InsuranceDcaPreparedDocument {
+  id            String   @id @default(cuid())
+  declarationId String
+  type          String
+  label         String?
+  sourceLabel   String   @default("MANUAL_ESTIMATE")
+  status        String   @default("PREPARED")
+  ocrText       String?
+  ocrMetadata   Json?
+  createdAt     DateTime @default(now())
+
+  declaration   InsuranceDcaDeclaration @relation(fields: [declarationId], references: [id])
+
+  @@index([declarationId])
+}
+
+model InsuranceDcaClaimEvent {
+  id               String   @id @default(cuid())
+  declarationId    String
+  year             Int
+  type             String
+  crop             String?
+  estimatedLossMad Int?
+  comment          String?
+  sourceLabel      String   @default("MANUAL_ESTIMATE")
+  createdAt        DateTime @default(now())
+
+  declaration      InsuranceDcaDeclaration @relation(fields: [declarationId], references: [id])
+
+  @@index([declarationId])
+  @@index([year])
 }
 
 model InsuranceMission {

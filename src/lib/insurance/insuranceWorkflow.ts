@@ -15,6 +15,21 @@ interface CreateApplicationInput {
   surfaceHa?: number | null
   requestedCoverageAmount?: number | null
   source?: string | null
+  consentCndp?: boolean | null
+  preferredLanguage?: string | null
+  documentsPrepared?: { type: string; sourceLabel: string }[] | null
+  declaredClaimHistory?: {
+    periodYears: number
+    noClaimsDeclared: boolean
+    events: {
+      year: number
+      type: string
+      crop: string
+      estimatedLossMad: number | null
+      comment: string | null
+      sourceLabel: 'MANUAL_ESTIMATE'
+    }[]
+  } | null
 }
 
 interface CreateMissionInput {
@@ -48,6 +63,24 @@ function normalizeSource(source?: string | null): string {
   return source
 }
 
+function parseLegacyDcaFallback(logs: Array<{ newValueJson: string | null }>) {
+  for (const log of logs) {
+    if (!log.newValueJson) continue
+
+    try {
+      const parsed = JSON.parse(log.newValueJson) as Record<string, unknown>
+      const declaration = parsed.dcaDeclaration
+      if (declaration && typeof declaration === 'object' && !Array.isArray(declaration)) {
+        return declaration
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 async function writeAuditLog(input: {
   entityType: string
   entityId: string
@@ -68,6 +101,12 @@ async function writeAuditLog(input: {
   })
 }
 
+function toLossInt(value: number | null): number | null {
+  if (value === null) return null
+  if (!Number.isFinite(value)) return null
+  return Math.round(value)
+}
+
 export async function createInsuranceApplicationDraft(input: CreateApplicationInput, actorUserId?: string | null) {
   const source = normalizeSource(input.source)
 
@@ -79,6 +118,9 @@ export async function createInsuranceApplicationDraft(input: CreateApplicationIn
       country: input.country,
       farmerId: null,
       parcelleId: input.parcelleId ?? null,
+      dcaDeclarationId: null,
+      preparedDocumentsCount: 0,
+      declaredClaimEventsCount: 0,
       cropType: input.cropCode,
       declaredSurfaceHa: input.surfaceHa ?? null,
       declaredLat: input.lat ?? null,
@@ -98,7 +140,17 @@ export async function createInsuranceApplicationDraft(input: CreateApplicationIn
 
   const farmer = await prisma.farmer.findUnique({
     where: { id: input.farmerId },
-    select: { id: true, country: true },
+    select: {
+      id: true,
+      country: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      region: true,
+      province: true,
+      commune: true,
+      village: true,
+    },
   })
 
   if (!farmer) {
@@ -106,64 +158,185 @@ export async function createInsuranceApplicationDraft(input: CreateApplicationIn
   }
 
   const parcelle = input.parcelleId
-    ? await prisma.parcelle.findUnique({ where: { id: input.parcelleId }, select: { id: true, superficie: true } })
+    ? await prisma.parcelle.findUnique({
+        where: { id: input.parcelleId },
+        select: { id: true, farmerId: true, culture: true, superficie: true, lat: true, lng: true },
+      })
     : null
+  if (input.parcelleId && !parcelle) {
+    throw new Error('Parcelle not found')
+  }
+
+  if (input.farmerId && parcelle && parcelle.farmerId !== input.farmerId) {
+    throw new Error('Parcelle does not belong to the requested farmer')
+  }
 
   const declaredSurfaceHa =
     typeof input.surfaceHa === 'number' && Number.isFinite(input.surfaceHa) && input.surfaceHa > 0
       ? input.surfaceHa
       : parcelle?.superficie ?? 0.01
 
-  const application = await prisma.insuranceApplication.create({
-    data: {
-      farmerId: farmer.id,
-      parcelleId: parcelle?.id ?? null,
-      country: 'MA',
-      province: input.provinceCode ?? input.regionCode ?? null,
-      commune: input.communeCode ?? null,
-      cropType: input.cropCode,
-      declaredSurfaceHa,
-      declaredLat: input.lat ?? null,
-      declaredLng: input.lng ?? null,
-      status: 'DRAFT',
-      source,
-      cndpConsentChecked: false,
-    },
-  })
+  const cropType = input.cropCode || parcelle?.culture || 'UNKNOWN'
 
-  await writeAuditLog({
-    entityType: 'INSURANCE_APPLICATION',
-    entityId: application.id,
-    action: 'APPLICATION_DRAFT_CREATED',
-    actorUserId,
-    source,
-    newValueJson: {
-      regionCode: input.regionCode ?? null,
-      provinceCode: input.provinceCode ?? null,
-      communeCode: input.communeCode ?? null,
-      requestedCoverageAmount: input.requestedCoverageAmount ?? null,
-      originalSource: input.source ?? null,
-    },
+  const hasFarmerDcaPayload =
+    input.consentCndp !== undefined &&
+    input.declaredClaimHistory !== undefined &&
+    Array.isArray(input.documentsPrepared)
+
+  const created = await prisma.$transaction(async (tx) => {
+    const application = await tx.insuranceApplication.create({
+      data: {
+        farmerId: farmer.id,
+        parcelleId: parcelle?.id ?? null,
+        country: 'MA',
+        province: input.provinceCode ?? input.regionCode ?? null,
+        commune: input.communeCode ?? null,
+        cropType,
+        declaredSurfaceHa,
+        declaredLat: input.lat ?? parcelle?.lat ?? null,
+        declaredLng: input.lng ?? parcelle?.lng ?? null,
+        status: 'DRAFT',
+        source,
+        cndpConsentChecked: input.consentCndp === true,
+        cndpConsentTimestamp: input.consentCndp ? new Date() : null,
+      },
+    })
+
+    let dcaDeclarationId: string | null = null
+    let preparedDocumentsCount = 0
+    let declaredClaimEventsCount = 0
+
+    if (hasFarmerDcaPayload && input.declaredClaimHistory) {
+      const declaration = await tx.insuranceDcaDeclaration.create({
+        data: {
+          applicationId: application.id,
+          farmerId: farmer.id,
+          parcelleId: parcelle?.id ?? null,
+          consentCndp: input.consentCndp === true,
+          preferredLanguage: input.preferredLanguage ?? null,
+          periodYears: input.declaredClaimHistory.periodYears,
+          noClaimsDeclared: input.declaredClaimHistory.noClaimsDeclared,
+          sourceLabel: source,
+          identitySnapshot: {
+            farmerId: farmer.id,
+            firstName: farmer.firstName,
+            lastName: farmer.lastName,
+            phone: farmer.phone,
+            country: farmer.country,
+            region: farmer.region,
+            province: farmer.province ?? null,
+            commune: farmer.commune ?? null,
+            village: farmer.village,
+          },
+          parcelleSnapshot: parcelle
+            ? {
+                parcelleId: parcelle.id,
+                farmerId: parcelle.farmerId,
+                culture: parcelle.culture,
+                superficie: parcelle.superficie,
+                lat: parcelle.lat,
+                lng: parcelle.lng,
+              }
+            : null,
+          rawDeclaration: {
+            preferredLanguage: input.preferredLanguage ?? null,
+            documentsPrepared: input.documentsPrepared ?? [],
+            declaredClaimHistory: input.declaredClaimHistory,
+          },
+        },
+      })
+
+      dcaDeclarationId = declaration.id
+
+      const documents = (input.documentsPrepared ?? []).map((document) => ({
+        declarationId: declaration.id,
+        type: document.type,
+        label: null,
+        sourceLabel: document.sourceLabel,
+        status: 'PREPARED',
+        ocrText: null,
+        ocrMetadata: null,
+      }))
+
+      if (documents.length) {
+        const createdDocs = await tx.insuranceDcaPreparedDocument.createMany({ data: documents })
+        preparedDocumentsCount = createdDocs.count
+      }
+
+      const events = input.declaredClaimHistory.events.map((event) => ({
+        declarationId: declaration.id,
+        year: event.year,
+        type: event.type,
+        crop: event.crop,
+        estimatedLossMad: toLossInt(event.estimatedLossMad),
+        comment: event.comment,
+        sourceLabel: event.sourceLabel,
+      }))
+
+      if (events.length) {
+        const createdEvents = await tx.insuranceDcaClaimEvent.createMany({ data: events })
+        declaredClaimEventsCount = createdEvents.count
+      }
+    }
+
+    await tx.auditLog.create({
+      data: {
+        entityType: 'INSURANCE_APPLICATION',
+        entityId: application.id,
+        action: hasFarmerDcaPayload ? 'DCA_CREATED' : 'APPLICATION_DRAFT_CREATED',
+        actorUserId: actorUserId ?? null,
+        source,
+        newValueJson: JSON.stringify({
+          regionCode: input.regionCode ?? null,
+          provinceCode: input.provinceCode ?? null,
+          communeCode: input.communeCode ?? null,
+          requestedCoverageAmount: input.requestedCoverageAmount ?? null,
+          originalSource: input.source ?? null,
+          dcaDeclarationId,
+          preparedDocumentsCount,
+          declaredClaimEventsCount,
+        }),
+      },
+    })
+
+    return {
+      application,
+      dcaDeclarationId,
+      preparedDocumentsCount,
+      declaredClaimEventsCount,
+    }
   })
 
   return {
-    ...application,
+    ...created.application,
     persisted: true,
+    dcaDeclarationId: created.dcaDeclarationId,
+    preparedDocumentsCount: created.preparedDocumentsCount,
+    declaredClaimEventsCount: created.declaredClaimEventsCount,
     sourceDisclosure: buildSourceDisclosure({
-      source: application.source,
+      source: created.application.source,
       provider: 'INSURANCE_WORKFLOW',
       confidence: 'MEDIUM',
     }),
   }
 }
 
-export async function getInsuranceApplicationById(id: string) {
-  const application = await prisma.insuranceApplication.findUnique({
-    where: { id },
+export async function getInsuranceApplicationById(id: string, input?: { farmerId?: string | null }) {
+  const application = await prisma.insuranceApplication.findFirst({
+    where: {
+      id,
+      farmerId: input?.farmerId ?? undefined,
+    },
     include: {
       farmer: true,
       parcelle: true,
       insurerInstitution: true,
+      dcaDeclaration: {
+        include: {
+          preparedDocuments: true,
+          claimEvents: { orderBy: { year: 'desc' } },
+        },
+      },
       missions: { orderBy: { createdAt: 'desc' }, take: 1 },
       fieldAudits: { orderBy: { createdAt: 'desc' }, take: 1 },
       raxEvaluations: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -184,6 +357,25 @@ export async function getInsuranceApplicationById(id: string) {
   return {
     ...application,
     metaLogs: logs,
+    dcaDeclaration: application.dcaDeclaration
+      ? {
+          ...application.dcaDeclaration,
+          preparedDocuments: application.dcaDeclaration.preparedDocuments,
+          declaredClaimEvents: application.dcaDeclaration.claimEvents,
+          sourceOfTruth: 'DEDICATED_DCA_TABLES',
+          legacyAuditFallbackUsed: false,
+        }
+      : null,
+    deprecatedLegacyAuditDcaFallback: application.dcaDeclaration
+      ? null
+      : (() => {
+          const legacy = parseLegacyDcaFallback(logs)
+          if (!legacy) return null
+          return {
+            source: 'AUDIT_LOG_DCA_DECLARATION_DEPRECATED',
+            data: legacy,
+          }
+        })(),
     sourceDisclosure: buildSourceDisclosure({
       source: application.source,
       provider: 'INSURANCE_WORKFLOW',
@@ -192,26 +384,53 @@ export async function getInsuranceApplicationById(id: string) {
   }
 }
 
-export async function listInsuranceApplications(input?: { page?: number; pageSize?: number }) {
+export async function listInsuranceApplications(input?: { page?: number; pageSize?: number; farmerId?: string | null }) {
   const page = Math.max(1, input?.page ?? 1)
   const pageSize = Math.min(100, Math.max(1, input?.pageSize ?? 20))
+  const where = input?.farmerId ? { farmerId: input.farmerId } : undefined
 
   const [rows, total] = await Promise.all([
     prisma.insuranceApplication.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
         farmer: { select: { id: true, firstName: true, lastName: true, country: true } },
         parcelle: { select: { id: true, name: true, culture: true } },
+        dcaDeclaration: {
+          select: {
+            id: true,
+            periodYears: true,
+            noClaimsDeclared: true,
+            sourceLabel: true,
+            createdAt: true,
+            _count: {
+              select: {
+                preparedDocuments: true,
+                claimEvents: true,
+              },
+            },
+          },
+        },
       },
     }),
-    prisma.insuranceApplication.count(),
+    prisma.insuranceApplication.count({ where }),
   ])
 
   return {
     data: rows.map((row) => ({
       ...row,
+      dcaSummary: row.dcaDeclaration
+        ? {
+            dcaDeclarationId: row.dcaDeclaration.id,
+            periodYears: row.dcaDeclaration.periodYears,
+            noClaimsDeclared: row.dcaDeclaration.noClaimsDeclared,
+            sourceLabel: row.dcaDeclaration.sourceLabel,
+            preparedDocumentsCount: row.dcaDeclaration._count.preparedDocuments,
+            declaredClaimEventsCount: row.dcaDeclaration._count.claimEvents,
+          }
+        : null,
       sourceDisclosure: buildSourceDisclosure({
         source: row.source,
         provider: 'INSURANCE_WORKFLOW',
